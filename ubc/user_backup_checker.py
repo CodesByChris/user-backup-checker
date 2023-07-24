@@ -18,6 +18,7 @@ Exit codes:
 
 from typing import Any
 from datetime import datetime, timedelta
+from glob import glob
 from os import path, stat, walk
 from textwrap import dedent
 from pathlib import Path
@@ -30,9 +31,9 @@ UserDataFrame = dict[str, UserData]  # lookup of "username:data" pairs
 
 # Settings
 USERS_TO_EXCLUDE = []  # usernames to skip
-USER_DETECTION = {
-    "local": {"home_dirs_glob": "/volume1/homes/[!@.]*/", "backup_dir": "Drive"},
-    "domain": {"home_dirs_glob": "/volume1/homes/@DH-D/*/*/", "backup_dir": "Drive"},
+USER_DETECTION_LOOKUPS = {
+    "local": {"home_dirs_glob": "/volume1/homes/[!@.]*/", "backup_subdir": "Drive/Backup/"},
+    "domain": {"home_dirs_glob": "/volume1/homes/@DH-D/*/*/", "backup_subdir": "Drive/Backup/"},
     # For naming and location of home directories of domain users see:
     #     https://kb.synology.com/en-us/DSM/help/DSM/AdminCenter/file_directory_service_user_group?version=7
     # The example above assumes the domain D, hence "@DH-D".
@@ -40,7 +41,6 @@ USER_DETECTION = {
 TOLERANCE_FUTURE = timedelta(days=1)  # Timespan for future files
 TOLERANCE_OUTDATED = timedelta(days=5)  # Timespan for outdated backups
 INCLUDE_WEEKENDS = False  # whether Saturdays and Sundays count towards outdated days
-NOTIFY_USERS = True
 
 
 # Mail Templates
@@ -151,7 +151,7 @@ class User:
 
     def __init__(self, username: str, dir_backup: Path):
         self.username = username
-        self.dir_backup = dir_backup
+        self.dir_backup = dir_backup  # TODO: Test if this directory exists.
         self._init_newest_file_and_date(dir_backup)
 
     def is_outdated(self, reference_date: datetime, tolerance: timedelta) -> bool:
@@ -222,3 +222,27 @@ class User:
                 if self.newest_date is None or file_date > self.newest_date:
                     self.newest_path = file_path
                     self.newest_date = file_date
+
+
+def user_factory(user_detection_lookups: dict) -> list[User]:
+    """Collects all users and their backup state on the Synology server.
+
+    Args:
+        user_detection_lookups: Lookup for different locations where the Synology stores home
+            directories. Typically, this value is USER_DETECTION_LOOKUPS.
+
+    Returns:
+        The collected users.
+    """
+    users = {}
+    for lookup in user_detection_lookups.values():
+        # Collect all home directories
+        home_dirs = glob(lookup["home_dirs_glob"])
+        home_dirs = [Path(home_dir) for home_dir in home_dirs if path.isdir(home_dir)]
+
+        # Create users
+        for home_dir in home_dirs:
+            name = home_dir.name  # last component of path
+            assert name not in users, f"More than one user '{name}' exists."
+            users[name] = User(name, dir_backup=home_dir / Path(lookup["backup_subdir"]))
+    return list(users.values())
