@@ -39,3 +39,47 @@ TOLERANCE_FUTURE = timedelta(days=1)  # Timespan for future files
 TOLERANCE_OUTDATED = timedelta(days=5)  # Timespan for outdated backups
 INCLUDE_WEEKENDS = False  # whether Saturdays and Sundays count towards outdated days
 NOTIFY_USERS = True
+
+
+# Mail Templates
+MAIL_TO_OUTDATED_USER = """
+Dear user,
+
+Your backup is outdated.
+
+- Date of last backup:  {date_last_backup}  ({outdated_days} outdated)
+
+Best regards,
+user_backup_checker.py
+"""
+
+MAIL_TO_FUTURE_USER = """
+Dear user,
+
+Your backup contains at least one file whose modification time lies in the future.
+
+- File:  {path}
+- Modification Time:  {date}
+
+Because of this file, your backup can not be validated correctly.
+
+Best regards,
+user_backup_checker.py
+"""
+
+MAIL_TO_ADMIN = """
+Outdated users:
+{outdated_users}
+
+
+Users with future files:
+{future_users}
+
+
+OK users:
+{ok_users}
+
+
+For an explanation of each position see the documentation in user_backup_checker.py
+
+"""
