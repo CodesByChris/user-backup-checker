@@ -83,3 +83,86 @@ OK users:
 For an explanation of each position see the documentation in user_backup_checker.py
 
 """
+
+
+# User Class
+class User:
+    """Collects information about a user on the Synology server."""
+
+    def __init__(self, username: str, dir_backup: str):
+        self.username = username
+        self.dir_backup = dir_backup
+        self.newest_path, self.newest_date = User._get_newest_update(dir_backup)
+
+    def is_outdated(self, reference_date: datetime, tolerance: timedelta) -> bool:
+        """Determines whether the user has an outdated backup.
+
+        This function essentially computes
+            self.newest_date < reference_date - tolerance
+        but may also exclude weekends depending on the arguments.
+
+        Args:
+            reference_date: Timestamp compared to which the user's backup shall be outdated. To use
+                today as the value, datetime.now() can be used.
+            tolerance: Tolerance period in which the most recent backup must have occurred to not be
+                outdated.
+
+        Returns:
+            True if the user's backup is outdated.
+        """
+        # TODO: Argument to include weekends
+
+        return time_difference(self.newest_date, reference_date) > tolerance
+
+    def is_in_future(self, reference_date: datetime, tolerance: timedelta) -> bool:
+        """Determines whether the user has a file with a timestamp in the future.
+
+        This function essentially computes
+            self.newest_date > reference_date + tolerance
+        but may also exclude weekends depending on the arguments.
+
+        Args:
+            reference_date: Timestamp compared to which the user's backup shall be outdated. To use
+                today as the value, datetime.now() can be used.
+            tolerance: Tolerance period in which the user's newest date is allowed to occur while
+                is_in_future still returns False.
+
+        Returns:
+            True if the user's backup has a file with a future timestamp.
+        """
+        # TODO: Argument to include weekends
+
+        return time_difference(reference_date, self.newest_date) > tolerance
+
+    @staticmethod
+    def _get_newest_update(dir_base: str) -> Tuple[str | None, datetime | None]:
+        """Determines the most recently updated file in dir_base or a sub-directory.
+
+        The most recent file is the file with the newest timestamp. Note that this timestamp may lie
+        in the future.
+
+        If the directory is altered while get_newest_update runs, datetime.now() is returned
+        immediately.
+
+        Args:
+            dir_base: Root of the folder-subtree to examine.
+
+        Returns:
+            Tuple containing first the most recent file's absolute path and then its timestamp.
+        """
+        newest_path = None
+        newest_date = None
+        for sub_root, _, files in walk(dir_base):
+            for file in files:
+                file_path = path.join(dir_base, sub_root, file)
+                try:
+                    file_date = stat(file_path, follow_symlinks=False).st_mtime
+                    file_date = datetime.fromtimestamp(file_date)
+                except FileNotFoundError:
+                    # File has been deleted in the meantime
+                    #     This means that a file exists that has been updated (deleted) just now.
+                    return file_path, datetime.now()
+                if newest_date is None or file_date > newest_date:
+                    newest_path = file_path
+                    newest_date = file_date
+        return newest_path, newest_date
