@@ -19,6 +19,7 @@ Exit codes:
 from typing import Any, Tuple
 from datetime import datetime, timedelta
 from os import path, stat, walk
+from pathlib import Path
 
 
 # Types
@@ -85,11 +86,69 @@ For an explanation of each position see the documentation in user_backup_checker
 """
 
 
+# Time Handling
+def _round_to_monday(date: datetime) -> datetime:
+    """Rounds date to the *next* Monday at 00:00 o'clock.
+
+    Example:
+        >>> # Round Tuesday, 1. January 2019 to Monday, 7. January 2019
+        >>> _round_to_monday(datetime(2019, 1, 1))
+        datetime(2019, 1, 7, 0, 0)
+    """
+
+    # Shift to next Monday
+    date += timedelta(days=1)
+    while date.isoweekday() != 1:
+        date += timedelta(days=1)
+
+    # Shift to midnight
+    date = date.replace(hour=0, minute=0, second=0, microsecond=0)
+    return date
+
+
+def time_difference(date_1: datetime, date_2: datetime,
+                    include_weekends: bool = INCLUDE_WEEKENDS) -> timedelta:
+    """Computes the time difference from date_1 to date_2.
+
+    The difference is positive if date_1 <= date_2 and negative otherwise.
+
+    This function essentially does the same as numpy.busday_count. However, numpy is not part of
+    Synology's Python package, and therefore is not used here.
+
+    Args:
+        date_1: First point in time.
+        date_2: Second point in time.
+        include_weekends: Whether or not to count weekend-days into the time-difference. If True and
+            date_1 or date_2 fall on a weekend, they are rounded to the next Monday, 00:00 o'clock.
+
+    Returns:
+        Computed time difference.
+    """
+
+    # Ensure date_1 <= date_2
+    if date_1 > date_2:
+        return -time_difference(date_1=date_2, date_2=date_1, include_weekends=include_weekends)
+
+    # Handle times on weekends
+    if not include_weekends and date_1.isoweekday() in {6, 7}:
+        date_1 = _round_to_monday(date_1)
+    if not include_weekends and date_2.isoweekday() in {6, 7}:
+        date_2 = _round_to_monday(date_2)
+
+    # Compute difference
+    day_difference = 0
+    while date_1 < date_2:
+        if include_weekends or date_1.isoweekday() not in {6, 7}:
+            day_difference += 1
+        date_1 += timedelta(days=1)
+    return (date_2 - date_1) + timedelta(days=day_difference)
+
+
 # User Class
 class User:
     """Collects information about a user on the Synology server."""
 
-    def __init__(self, username: str, dir_backup: str):
+    def __init__(self, username: str, dir_backup: Path):
         self.username = username
         self.dir_backup = dir_backup
         self.newest_path, self.newest_date = User._get_newest_update(dir_backup)
@@ -135,7 +194,7 @@ class User:
         return time_difference(reference_date, self.newest_date) > tolerance
 
     @staticmethod
-    def _get_newest_update(dir_base: str) -> Tuple[str | None, datetime | None]:
+    def _get_newest_update(dir_base: Path) -> Tuple[Path | None, datetime | None]:
         """Determines the most recently updated file in dir_base or a sub-directory.
 
         The most recent file is the file with the newest timestamp. Note that this timestamp may lie
