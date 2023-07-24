@@ -19,6 +19,7 @@ Exit codes:
 from typing import Any
 from datetime import datetime, timedelta
 from os import path, stat, walk
+from textwrap import dedent
 from pathlib import Path
 
 
@@ -43,47 +44,47 @@ NOTIFY_USERS = True
 
 
 # Mail Templates
-MAIL_TO_OUTDATED_USER = """
-Dear user,
+MAIL_TO_OUTDATED_USER = dedent("""
+    Dear user,
 
-Your backup is outdated.
+    Your backup is outdated.
 
-- Date of last backup:  {date_last_backup}  ({outdated_days} outdated)
+    - Date of last backup:  {date_last_backup}  ({outdated_days} outdated)
 
-Best regards,
-user_backup_checker.py
-"""
+    Best regards,
+    user_backup_checker.py
+""")
 
-MAIL_TO_FUTURE_USER = """
-Dear user,
+MAIL_TO_FUTURE_USER = dedent("""
+    Dear user,
 
-Your backup contains at least one file whose modification time lies in the future.
+    Your backup contains at least one file whose modification time lies in the future.
 
-- File:  {path}
-- Modification Time:  {date}
+    - File:  {path}
+    - Modification Time:  {date}
 
-Because of this file, your backup can not be validated correctly.
+    Because of this file, your backup can not be validated correctly.
 
-Best regards,
-user_backup_checker.py
-"""
+    Best regards,
+    user_backup_checker.py
+""")
 
-MAIL_TO_ADMIN = """
-Outdated users:
-{outdated_users}
-
-
-Users with future files:
-{future_users}
+MAIL_TO_ADMIN = dedent("""
+    Outdated users:
+    {outdated_users}
 
 
-OK users:
-{ok_users}
+    Users with future files:
+    {future_users}
 
 
-For an explanation of each position see the documentation in user_backup_checker.py
+    OK users:
+    {ok_users}
 
-"""
+
+    For an explanation of each position see the documentation in user_backup_checker.py
+
+""")
 
 
 # Time Handling
@@ -205,8 +206,8 @@ class User:
         Args:
             dir_base: Root of the folder-subtree to examine.
         """
-        newest_path = None
-        newest_date = None
+        self.newest_path = None
+        self.newest_date = None
         for sub_root, _, files in walk(dir_base):
             for file in files:
                 file_path = path.join(dir_base, sub_root, file)
@@ -218,8 +219,6 @@ class User:
                     self.newest_path = file_path
                     self.newest_date = datetime.now()
                     return
-                if newest_date is None or file_date > newest_date:
-                    newest_path = file_path
-                    newest_date = file_date
-        self.newest_path = newest_path
-        self.newest_date = newest_date
+                if self.newest_date is None or file_date > self.newest_date:
+                    self.newest_path = file_path
+                    self.newest_date = file_date
