@@ -16,7 +16,7 @@ Exit codes:
     2: No user found on Synology.
 """
 
-from typing import Any, Tuple
+from typing import Any
 from datetime import datetime, timedelta
 from os import path, stat, walk
 from pathlib import Path
@@ -151,7 +151,7 @@ class User:
     def __init__(self, username: str, dir_backup: Path):
         self.username = username
         self.dir_backup = dir_backup
-        self.newest_path, self.newest_date = User._get_newest_update(dir_backup)
+        self._init_newest_file_and_date(dir_backup)
 
     def is_outdated(self, reference_date: datetime, tolerance: timedelta) -> bool:
         """Determines whether the user has an outdated backup.
@@ -193,21 +193,17 @@ class User:
 
         return time_difference(reference_date, self.newest_date) > tolerance
 
-    @staticmethod
-    def _get_newest_update(dir_base: Path) -> Tuple[Path | None, datetime | None]:
-        """Determines the most recently updated file in dir_base or a sub-directory.
+    def _init_newest_file_and_date(self, dir_base: Path):
+        """Determines the most recent file in dir_base and subtrees and stores its path and date.
 
-        The most recent file is the file with the newest timestamp. Note that this timestamp may lie
-        in the future.
+        The most recent file is the file with the newest modification timestamp. Note that this
+        timestamp may lie in the future.
 
         If the directory is altered while get_newest_update runs, datetime.now() is returned
         immediately.
 
         Args:
             dir_base: Root of the folder-subtree to examine.
-
-        Returns:
-            Tuple containing first the most recent file's absolute path and then its timestamp.
         """
         newest_path = None
         newest_date = None
@@ -218,10 +214,12 @@ class User:
                     file_date = stat(file_path, follow_symlinks=False).st_mtime
                     file_date = datetime.fromtimestamp(file_date)
                 except FileNotFoundError:
-                    # File has been deleted in the meantime
-                    #     This means that a file exists that has been updated (deleted) just now.
-                    return file_path, datetime.now()
+                    # File has been deleted in the meantime, i.e. was updated just now.
+                    self.newest_path = file_path
+                    self.newest_date = datetime.now()
+                    return
                 if newest_date is None or file_date > newest_date:
                     newest_path = file_path
                     newest_date = file_date
-        return newest_path, newest_date
+        self.newest_path = newest_path
+        self.newest_date = newest_date
