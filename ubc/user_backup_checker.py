@@ -246,3 +246,49 @@ def user_factory(user_detection_lookups: dict) -> list[User]:
             assert name not in users, f"More than one user '{name}' exists."
             users[name] = User(name, dir_backup=home_dir / Path(lookup["backup_subdir"]))
     return list(users.values())
+
+
+def status_report(users: list[User], message_template: str,
+                  tolerance_outdated: timedelta, tolerance_future: timedelta):
+    """Returns a report of users with OK, outdated, and future backups.
+
+    Args:
+        users: Users that shall be included in the status report.
+        message_template: String containing a template of the message to be printed. It has to
+            contain the following substrings that will be replaced with the respective user
+            statuses:
+            - {ok_users} (users without problems).
+            - {future_users} (users with future files in their backups).
+            - {outdated_users} (users with outdated backups).
+        tolerance_outdated: Tolerance period in which the most recent backup must have occurred to
+            not be outdated.
+        tolerance_future: Tolerance period in which the user's newest date is allowed to occur while
+            is_in_future still returns False.
+
+    Returns:
+        The status report.
+    """
+    # Prepare lists of users
+    reference_date = datetime.now()
+    future_users = {u for u in users if u.is_in_future(reference_date, tolerance_future)}
+    outdated_users = {u for u in users if u.is_outdated(reference_date, tolerance_outdated)}
+    ok_users = {u for u in users if u not in outdated_users | future_users}
+
+    issue_index = {
+        "future_users": sorted(future_users),
+        "outdated_users": sorted(outdated_users),
+        "ok_users": sorted(ok_users),
+    }
+
+    # Fill template
+    width_usernames = max(len(u.username) for u in users)
+    row = f"- {{name:{width_usernames}}}  ({{date:%Y-%m-%d}})"
+
+    replacements = {}
+    for issue_type, issue_users in issue_index.items():
+        rows = [row.format(name=u.username, date=u.newest_date) for u in issue_users]
+        if not rows:
+            # No user has this issue type
+            rows = ["[None]"]
+        replacements[issue_type] = "\n".join(rows)
+    return message_template.format(**replacements)
