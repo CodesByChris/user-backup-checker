@@ -22,6 +22,7 @@ from glob import glob
 from os import path, stat, walk
 from textwrap import dedent
 from pathlib import Path
+import sys
 
 
 # Types
@@ -30,7 +31,7 @@ UserDataFrame = dict[str, UserData]  # lookup of "username:data" pairs
 
 
 # Settings
-USERS_TO_EXCLUDE = []  # usernames to skip
+USERS_TO_EXCLUDE = set()  # usernames to skip
 USER_DETECTION_LOOKUPS = {
     "local": {"home_dirs_glob": "/volume1/homes/[!@.]*/", "backup_subdir": "Drive/Backup/"},
     "domain": {"home_dirs_glob": "/volume1/homes/@DH-D/*/*/", "backup_subdir": "Drive/Backup/"},
@@ -224,12 +225,13 @@ class User:
                     self.newest_date = file_date
 
 
-def user_factory(user_detection_lookups: dict) -> list[User]:
+def user_factory(user_detection_lookups: dict, usernames_to_exclude: set[str]) -> list[User]:
     """Collects all users and their backup state on the Synology server.
 
     Args:
         user_detection_lookups: Lookup for different locations where the Synology stores home
             directories. Typically, this value is USER_DETECTION_LOOKUPS.
+        usernames_to_exclude: Exclude users in this list. Typically, this value is USERS_TO_EXCLUDE.
 
     Returns:
         The collected users.
@@ -243,7 +245,10 @@ def user_factory(user_detection_lookups: dict) -> list[User]:
         # Create users
         for home_dir in home_dirs:
             name = home_dir.name  # last component of path
-            assert name not in users, f"More than one user '{name}' exists."
+            if name in usernames_to_exclude:
+                continue
+            if name in users:
+                raise RuntimeError(f"More than one user has name: {name}")
             users[name] = User(name, dir_backup=home_dir / Path(lookup["backup_subdir"]))
     return list(users.values())
 
