@@ -253,50 +253,79 @@ def user_factory(user_detection_lookups: dict, usernames_to_exclude: set[str]) -
     return list(users.values())
 
 
-def status_report(users: list[User], message_template: str,
-                  tolerance_outdated: timedelta, tolerance_future: timedelta):
-    """Returns a report of users with OK, outdated, and future backups.
+# Reporting
+class StatusReporter:
+    """Reporter for status messages of users with OK, outdated, and future backups."""
 
-    Args:
-        users: Users that shall be included in the status report.
-        message_template: String containing a template of the message to be printed. It has to
-            contain the following substrings that will be replaced with the respective user
-            statuses:
-            - {ok_users} (users without problems).
-            - {future_users} (users with future files in their backups).
-            - {outdated_users} (users with outdated backups).
-        tolerance_outdated: Tolerance period in which the most recent backup must have occurred to
-            not be outdated.
-        tolerance_future: Tolerance period in which the user's newest date is allowed to occur while
-            is_in_future still returns False.
+    def __init__(self, users: list[User], reference_date: datetime,
+                 tolerance_outdated: timedelta, tolerance_future: timedelta):
+        """Initializes reporter.
 
-    Returns:
-        The status report.
-    """
-    # Prepare lists of users
-    reference_date = datetime.now()
-    future_users = {u for u in users if u.is_in_future(reference_date, tolerance_future)}
-    outdated_users = {u for u in users if u.is_outdated(reference_date, tolerance_outdated)}
-    ok_users = {u for u in users if u not in outdated_users | future_users}
+        Args:
+            users: Users that shall be included in the status report.
+            reference_date: Timestamp compared to which the user's backup shall be outdated or
+                future. To use today as the value, use datetime.now().
+            tolerance_outdated: Tolerance period in which the most recent backup must have occurred
+                to not be outdated.
+            tolerance_future: Tolerance period in which the user's newest date is allowed to occur
+                while is_in_future still returns False.
+        """
+        # Store args
+        self.users = users.copy()
+        self.tolerance_outdated = tolerance_outdated
+        self.tolerance_future = tolerance_future
+        self.reference_date = reference_date
 
-    issue_index = {
-        "future_users": sorted(future_users),
-        "outdated_users": sorted(outdated_users),
-        "ok_users": sorted(ok_users),
-    }
+        # Group users by backup status
+        future_users = {u for u in users if u.is_in_future(reference_date, tolerance_future)}
+        outdated_users = {u for u in users if u.is_outdated(reference_date, tolerance_outdated)}
+        ok_users = {u for u in users if u not in outdated_users | future_users}
 
-    # Fill template
-    width_usernames = max(len(u.username) for u in users)
-    row = f"- {{name:{width_usernames}}}  ({{date:%Y-%m-%d}})"
+        self._issue_index = {
+            "future_users": sorted(future_users, key=lambda u: u.username),
+            "outdated_users": sorted(outdated_users, key=lambda u: u.username),
+            "ok_users": sorted(ok_users, key=lambda u: u.username),
+        }
 
-    replacements = {}
-    for issue_type, issue_users in issue_index.items():
-        rows = [row.format(name=u.username, date=u.newest_date) for u in issue_users]
-        if not rows:
-            # No user has this issue type
-            rows = ["[None]"]
-        replacements[issue_type] = "\n".join(rows)
-    return message_template.format(**replacements)
+    def get_report(self, message_template: str) -> str:
+        """Status report of users with OK, outdated, and future backups.
+
+        Args:
+            message_template: Template of the status report. It has to contain the following
+                substrings that are replaced with the respective user statuses:
+                - {ok_users} (users without problems).
+                - {future_users} (users with future-dated files in their backups).
+                - {outdated_users} (users with outdated backups).
+
+        Returns:
+            The status report.
+        """
+        width_usernames = max(len(u.username) for u in self.users)
+        row = f"- {{name:{width_usernames}}}  ({{date:%Y-%m-%d}})"
+
+        replacements = {}
+        for issue_type, issue_users in self._issue_index.items():
+            rows = [row.format(name=u.username, date=u.newest_date) for u in issue_users]
+            if not rows:
+                # No user has this issue type
+                rows = ["[None]"]
+            replacements[issue_type] = "\n".join(rows)
+        return message_template.format(**replacements)
+
+    @property
+    def outdated_users(self) -> list[User]:
+        """The users with outdated backups, sorted by ascending usernames."""
+        return self._issue_index["outdated_users"].copy()
+
+    @property
+    def future_users(self) -> list[User]:
+        """The users with backups containing future-dated files, sorted by ascending usernames."""
+        return self._issue_index["future_users"].copy()
+
+    @property
+    def ok_users(self) -> list[User]:
+        """The users with neither outdated nor future backups, sorted by ascending usernames."""
+        return self._issue_index["ok_users"].copy()
 
 
 # Main
@@ -310,7 +339,9 @@ def main():
         sys.exit(2)
 
     # Print status report
-    print(status_report(users, MAIL_TO_ADMIN, TOLERANCE_OUTDATED, TOLERANCE_FUTURE))
+    reference_date = datetime.now()
+    reporter = StatusReporter(users, reference_date, TOLERANCE_OUTDATED, TOLERANCE_FUTURE)
+    print(reporter.get_report(MAIL_TO_ADMIN))
     sys.exit(0)
 
 
