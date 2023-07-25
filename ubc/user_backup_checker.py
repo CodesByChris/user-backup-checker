@@ -292,3 +292,22 @@ def status_report(users: list[User], message_template: str,
             rows = ["[None]"]
         replacements[issue_type] = "\n".join(rows)
     return message_template.format(**replacements)
+
+
+# Main
+def main():
+    """Main function of the script."""
+
+    # Get users and their backup state
+    users = user_factory(USER_DETECTION_LOOKUPS, USERS_TO_EXCLUDE)
+    if not users:
+        print("ERROR: No user found on Synology.")
+        sys.exit(2)
+
+    # Print status report
+    print(status_report(users, MAIL_TO_ADMIN, TOLERANCE_OUTDATED, TOLERANCE_FUTURE))
+    sys.exit(0)
+
+
+if __name__ == "__main__":
+    main()
