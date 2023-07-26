@@ -1,33 +1,30 @@
 """Scan a Synology server for interrupted user backups performed with Synology Drive.
 
-The validation has these steps:
+The validation has three steps:
 1. Compile a list of users on the Synology.
 2. Determine the most recent modification date among the files in each user's backup directory.
 3. For each user, determine whether this date lies within a given number of days in the past.
 
 (Optional) Sending automated emails to affected users. To enable this:
-1. Implement `MailHandler.send_email` below. Depending on your Synology setup, this most likely
-   requires you to set up an SMTP connection to a valid external email address, which
-   user_backup_checker.py can use to send the emails.
-2. Use MailReporter instead of Reporter in main().
+1. Implement `MailClient` (see below). For most Synology setups, this likely means to connect via
+   SMTP to an external email address, which user_backup_checker.py can use to send the emails to
+   individual users. See also the following Python modules:
+   - [`smtplib`](https://docs.python.org/3/library/smtplib.html)
+   - [`email`](https://docs.python.org/3/library/email.html)
+2. Call main() with an instance of your `MailClient` (sub-)class for the argument `mail_client`.
 
 Exit codes:
     0: Validation completed successfully.
     2: No user found on Synology.
 """
 
-from typing import Any
+from typing import Optional
 from datetime import datetime, timedelta
 from glob import glob
 from os import path, stat, walk
 from textwrap import dedent
 from pathlib import Path
 import sys
-
-
-# Types
-UserData = dict[str, Any]  # i.e. collection of stats about a user's backup
-UserDataFrame = dict[str, UserData]  # lookup of "username:data" pairs
 
 
 # Settings
@@ -44,12 +41,12 @@ TOLERANCE_FUTURE = timedelta(days=1)  # Timespan for future files
 TOLERANCE_OUTDATED = timedelta(days=5)  # Timespan for outdated backups
 
 # Settings for individual user emails
-NOTIFY_USERS = False
 REMINDER_INTERVAL = timedelta(days=5)  # Interval for reminder emails after the initial email
 
 
 # Mail Templates
-MAIL_TO_OUTDATED_USER = dedent("""
+SUBJECT_OUTDATED = "Outdated backup"
+MAIL_OUTDATED = dedent("""
     Dear user,
 
     Your backup is outdated.
@@ -60,7 +57,8 @@ MAIL_TO_OUTDATED_USER = dedent("""
     user_backup_checker.py
 """)
 
-MAIL_TO_FUTURE_USER = dedent("""
+SUBJECT_FUTURE = "Non-verifiable backup"
+MAIL_FUTURE = dedent("""
     Dear user,
 
     Your backup contains at least one file whose modification time lies in the future.
@@ -464,7 +462,7 @@ class MailReporter:
 
 
 # Main
-def main():
+def main(mail_client: Optional[MailClient] = None):
     """Main function of the script."""
 
     # Get users and their backup state
@@ -474,11 +472,16 @@ def main():
         sys.exit(2)
 
     # Print status report
-    reference_date = datetime.now()
-    reporter = StatusReporter(users, reference_date, TOLERANCE_OUTDATED, TOLERANCE_FUTURE)
+    reporter = StatusReporter(users, datetime.now(), TOLERANCE_OUTDATED, TOLERANCE_FUTURE)
     print(reporter.get_report(ADMIN_STATUS_REPORT))
+
+    # Notify individual users
+    if mail_client:
+        mail_reporter = MailReporter(reporter, mail_client, REMINDER_INTERVAL, INCLUDE_WEEKENDS)
+        mail_reporter.notify_outdated_recipients(SUBJECT_OUTDATED, MAIL_OUTDATED)
+        mail_reporter.notify_future_recipients(SUBJECT_FUTURE, MAIL_FUTURE)
     sys.exit(0)
 
 
 if __name__ == "__main__":
-    main()
+    main(mail_client=None)
