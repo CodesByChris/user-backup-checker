@@ -44,6 +44,7 @@ TOLERANCE_FUTURE = timedelta(days=1)  # Timespan for future files
 TOLERANCE_OUTDATED = timedelta(days=5)  # Timespan for outdated backups
 
 # Settings for individual user emails
+NOTIFY_USERS = False
 REMINDER_INTERVAL = timedelta(days=5)  # Interval for reminder emails after the initial email
 
 
@@ -73,7 +74,7 @@ MAIL_TO_FUTURE_USER = dedent("""
     user_backup_checker.py
 """)
 
-MAIL_TO_ADMIN = dedent("""
+ADMIN_STATUS_REPORT = dedent("""
     Outdated users:
     {outdated_users}
 
@@ -167,7 +168,7 @@ class User:
 
         Args:
             reference_date: Timestamp compared to which the user's backup shall be outdated. To use
-                today as the value, datetime.now() can be used.
+                today as the value, use datetime.now().
             tolerance: Tolerance period in which the most recent backup must have occurred to not be
                 outdated.
 
@@ -187,7 +188,7 @@ class User:
 
         Args:
             reference_date: Timestamp compared to which the user's backup shall be outdated. To use
-                today as the value, datetime.now() can be used.
+                today as the value, use datetime.now().
             tolerance: Tolerance period in which the user's newest date is allowed to occur while
                 is_in_future still returns False.
 
@@ -475,7 +476,7 @@ def main():
     # Print status report
     reference_date = datetime.now()
     reporter = StatusReporter(users, reference_date, TOLERANCE_OUTDATED, TOLERANCE_FUTURE)
-    print(reporter.get_report(MAIL_TO_ADMIN))
+    print(reporter.get_report(ADMIN_STATUS_REPORT))
     sys.exit(0)
 
 
