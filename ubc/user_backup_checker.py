@@ -39,9 +39,12 @@ USER_DETECTION_LOOKUPS = {
     #     https://kb.synology.com/en-us/DSM/help/DSM/AdminCenter/file_directory_service_user_group?version=7
     # The example above assumes the domain D, hence "@DH-D".
 }
+INCLUDE_WEEKENDS = False  # whether Saturdays and Sundays count towards outdated days
 TOLERANCE_FUTURE = timedelta(days=1)  # Timespan for future files
 TOLERANCE_OUTDATED = timedelta(days=5)  # Timespan for outdated backups
-INCLUDE_WEEKENDS = False  # whether Saturdays and Sundays count towards outdated days
+
+# Settings for individual user emails
+REMINDER_INTERVAL = timedelta(days=5)  # Interval for reminder emails after the initial email
 
 
 # Mail Templates
@@ -61,10 +64,10 @@ MAIL_TO_FUTURE_USER = dedent("""
 
     Your backup contains at least one file whose modification time lies in the future.
 
-    - File:  {path}
+    - File:               {path}
     - Modification Time:  {date}
 
-    Because of this file, your backup can not be validated correctly.
+    Because of this file, your backup cannot be validated correctly.
 
     Best regards,
     user_backup_checker.py
@@ -326,6 +329,137 @@ class StatusReporter:
     def ok_users(self) -> list[User]:
         """The users with neither outdated nor future backups, sorted by ascending usernames."""
         return self._issue_index["ok_users"].copy()
+
+
+# Email Reporting
+class MailClient:
+    """Abstract base class for email handling as used by user_backup_checker.py."""
+
+    def get_email_address(self, user: User):
+        """Returns the email address of the given user."""
+        raise NotImplementedError()
+
+    def send_email(self, receiver: User, subject: str, message: str):
+        """Send an email to the provided User."""
+        raise NotImplementedError()
+
+
+class MailReporter:
+    """Reporter for sending users emails to warn them about outdated backups or future files.
+
+    Users with future-dated files receive an email everyday, and users with outdated backups receive
+    an email after reminder_interval.
+    """
+
+    def __init__(self, reporter: StatusReporter, mail_client: MailClient,
+                 reminder_interval: timedelta, include_weekends: bool):
+        """Initializes the reporter.
+
+        Args:
+            reporter: StatusReporter containing the lists of outdated and future users.
+            mail_client: MailClient
+            reminder_interval: Pause between consecutive reminder emails. Only intervals in days are
+                accepted (i.e. no hours, minutes, seconds, etc.). reminder_interval only determines
+                reminder emails that follow *after* the first email, which in turn is determined by
+                `reporter.tolerance_outdated`.
+            include_weekends: Whether to count weekends for time differences.
+        """
+        if reminder_interval.seconds != 0 or reminder_interval.microseconds != 0:
+            # This check uses that timedelta objects only store days, seconds, and microseconds,
+            # see: https://docs.python.org/3/library/datetime.html#datetime.timedelta
+            raise RuntimeError("reminder_interval must be a multiple of entire days.")
+        self._status_reporter = reporter
+        self._mail_client = mail_client
+        self._reminder_interval = reminder_interval
+        self._include_weekends = include_weekends
+        self._future_recipients = list(reporter.future_users)
+        self._outdated_recipients = [u for u in reporter.outdated_users if self._is_mail_due(u)]
+
+    @property
+    def future_recipients(self) -> list[User]:
+        """The users with future-dated files who will get an email."""
+        return self._future_recipients.copy()
+
+    @property
+    def outdated_recipients(self) -> list[User]:
+        """The users with outdated backups who will get an email."""
+        return self._outdated_recipients.copy()
+
+    def notify_outdated_recipients(self, subject: str, email_template: str):
+        """Sends an email to the users with outdated backups.
+
+        Args:
+            subject: Subject of the emails. The same subject is sent to all users.
+            email_template: Template of the email to send to users. It should contain the following
+                placeholders, which are replaced individually for each user:
+                - {date_last_backup}: Date of the user's last backup.
+                - {outdated_days}: Number of days the last backup is in the past compared to today.
+
+        Effects:
+            Sends the email to the user.
+        """
+        day_unit = "days" if self._include_weekends else "weekdays"
+        reference_date = self._status_reporter.reference_date
+
+        for user in self._future_recipients:
+            # Assemble message
+            date = user.newest_date
+            outdated_days = time_difference(date, reference_date, self._include_weekends).days
+            message = email_template.format(date_last_backup=date.strftime("%Y-%m-%d"),
+                                            outdated_days=f"{outdated_days} {day_unit}")
+
+            # Send message
+            self._mail_client.send_email(user, message, subject)
+        # TODO: Instead of subject and email_template, notify_outdated_recipients should take a function taking a user as argument and returning subject and message. This avoids the dependence of MailReporter on the concrete fields to be replaced.
+
+    def notify_future_recipients(self, subject: str, email_template: str):
+        """Sends an email to the users with future files in their backups.
+
+        Args:
+            subject: Subject of the emails. The same subject is sent to all users.
+            email_template: Template of the email to send to users. It should contain the following
+                placeholders, which are replaced individually for each user:
+                - {path}: Path to the future-dated file.
+                - {date}: Modification time of the future-dated file.
+
+        Effects:
+            Sends the email to the user.
+        """
+        for user in self._future_recipients:
+            message = email_template.format(path=user.newest_path,
+                                            date=user.newest_date.strftime("%Y-%m-%d"))
+            self._mail_client.send_email(user, subject, message)
+
+    def _is_mail_due(self, user: User) -> bool:
+        """Determines whether a notification email to the given user is due on the reference_date.
+
+        This function does not store any databases to determine when emails are sent to users.
+        Instead, it assumes that user_backup_checker.py is run once per day.
+
+        Args:
+            user: User to check
+
+        Returns:
+            True if (i) the user has an *outdated* backup and (ii) the previous email was sent
+            exactly the given reminder_interval ago.
+        """
+        reference_date = self._status_reporter.reference_date.date()  # no hours, minutes, etc.
+        tolerance_outdated = self._status_reporter.tolerance_outdated
+        assert user.is_outdated(reference_date, tolerance_outdated)
+
+        # Compute day of first email
+        date = user.newest_date
+        while time_difference(user.newest_date, date, self._include_weekends) <= tolerance_outdated:
+            date += timedelta(days=1)
+        day_first_email = date.date()
+
+        # Check if an email is due on reference_date.
+        if reference_date < day_first_email:
+            return False
+        if reference_date == day_first_email:
+            return True
+        days_since_first = time_difference(day_first_email, reference_date, self._include_weekends)
+        return days_since_first % self._reminder_interval == timedelta(0)
 
 
 # Main
