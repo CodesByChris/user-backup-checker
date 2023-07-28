@@ -153,8 +153,14 @@ class User:
     """Collects information about a user on the Synology server."""
 
     def __init__(self, username: str, dir_backup: Path):
+        """
+        Raises:
+            FileNotFoundError: If the backup directory does not exist.
+        """
         self.username = username
-        self.dir_backup = dir_backup  # TODO: Test if this directory exists.
+        self.dir_backup = dir_backup
+        if not dir_backup.is_dir():
+            raise FileNotFoundError(f"Backup dir not found (user '{username}'): '{dir_backup}'")
         self._init_newest_file_and_date(dir_backup)
 
     def is_outdated(self, reference_date: datetime, tolerance: timedelta) -> bool:
