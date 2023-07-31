@@ -69,7 +69,50 @@ def test_user_is_outdated_tol0(empty_user, reference_date=datetime(2023, 7, 24, 
     assert not empty_user.is_outdated(reference_date, timedelta(0))
 
 
-# Test in_future
+def test_user_is_in_future(empty_user,
+                           reference_date=datetime(2023, 7, 24, 13, 48, 10),
+                           tolerance=timedelta(days=10)):
+    """Tests User.is_in_future."""
+
+    # Prepare user
+    empty_user.newest_path = None
+
+    # Test in future
+    empty_user.newest_date = reference_date + 2 * tolerance
+    assert empty_user.is_in_future(reference_date, tolerance)
+
+    # Test within tolerance
+    empty_user.newest_date = reference_date + tolerance / 2
+    assert not empty_user.is_in_future(reference_date, tolerance)
+
+    # Test exactly at newest_date
+    empty_user.newest_date = reference_date
+    assert not empty_user.is_in_future(reference_date, tolerance)
+
+    # Test in past
+    empty_user.newest_date = reference_date - timedelta(days=10)
+    assert not empty_user.is_in_future(reference_date, tolerance)
+
+
+def test_user_is_in_future_tol0(empty_user, reference_date=datetime(2023, 7, 24, 13, 48, 10)):
+    """Tests User.is_outdated for a tolerance of 0."""
+
+    # Prepare user
+    empty_user.newest_path = None
+
+    # Test in future
+    empty_user.newest_date = reference_date + timedelta(days=10)
+    assert empty_user.is_in_future(reference_date, timedelta(0))
+
+    # Test exactly at newest_date
+    empty_user.newest_date = reference_date
+    assert not empty_user.is_in_future(reference_date, timedelta(0))
+
+    # Test in past
+    empty_user.newest_date = reference_date - timedelta(days=10)
+    assert not empty_user.is_in_future(reference_date, timedelta(0))
+
+
 # Test user_factory:
 #     - Does it throw an error when the same username exists twice (e.g. local user and domain user)
 # Test exit codes (e.g. when no user exists on Synology).
