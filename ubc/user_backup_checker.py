@@ -19,12 +19,18 @@ Exit codes:
 """
 
 from typing import Optional
+from logging import getLogger, WARNING
+from logging.handlers import QueueHandler
 from datetime import datetime, timedelta
 from glob import glob
 from os import path, stat, walk
+from queue import Queue
 from textwrap import dedent
 from pathlib import Path
 import sys
+
+
+logger = getLogger(__name__)
 
 
 # Settings
@@ -257,7 +263,11 @@ def user_factory(user_detection_lookups: dict, usernames_to_exclude: set[str]) -
                 continue
             if name in users:
                 raise RuntimeError(f"More than one user has name: {name}")
-            users[name] = User(name, dir_backup=home_dir / Path(lookup["backup_subdir"]))
+            try:
+                user = User(name, dir_backup=home_dir / Path(lookup["backup_subdir"]))
+            except FileNotFoundError as error:
+                logger.warning(str(error))
+            users[name] = user
     return list(users.values())
 
 
@@ -471,6 +481,11 @@ class MailReporter:
 def main(mail_client: Optional[MailClient] = None):
     """Main function of the script."""
 
+    # Configure logging to print after the report
+    message_queue = Queue()
+    logger.addHandler(QueueHandler(message_queue))
+    logger.setLevel(WARNING)
+
     # Get users and their backup state
     users = user_factory(USER_DETECTION_LOOKUPS, USERS_TO_EXCLUDE)
     if not users:
@@ -486,6 +501,12 @@ def main(mail_client: Optional[MailClient] = None):
         mail_reporter = MailReporter(reporter, mail_client, REMINDER_INTERVAL, INCLUDE_WEEKENDS)
         mail_reporter.notify_outdated_recipients(SUBJECT_OUTDATED, MAIL_OUTDATED)
         mail_reporter.notify_future_recipients(SUBJECT_FUTURE, MAIL_FUTURE)
+
+    # Print log
+    if not message_queue.empty():
+        print("Log:")
+        while not message_queue.empty():
+            print(message_queue.get())
     sys.exit(0)
 
 
