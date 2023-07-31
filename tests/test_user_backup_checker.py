@@ -3,7 +3,7 @@
 from datetime import datetime, timedelta
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from pytest import fixture
+from pytest import fixture, mark
 from ubc.user_backup_checker import User
 
 
@@ -25,96 +25,36 @@ def empty_user(paths_localuser_homes, name="empty_user") -> User:
     return User(name, user_home_dir)
 
 
-def test_user_is_outdated(empty_user,
-                          reference_date=datetime(2023, 7, 24, 13, 48, 10),
-                          tolerance=timedelta(days=10)):
-    """Tests User.is_outdated."""
+@mark.parametrize("infuture_or_outdated", [User.is_in_future, User.is_outdated])
+@mark.parametrize("special_case_0", [False, True])
+def test_user_problem_discovery(empty_user,
+                                infuture_or_outdated,
+                                special_case_0,
+                                reference_date=datetime(2023, 7, 24, 13, 48, 10),
+                                tolerance=timedelta(days=10)):
+    """Tests User.is_outdated and User.is_in_future."""
+    exclude_weekends = True
+    plus_or_minus = 1 if infuture_or_outdated is User.is_in_future else - 1
 
     # Prepare user
     empty_user.newest_path = None
 
-    # Test outdated
-    exclude_weekends = True
-    empty_user.newest_date = reference_date - 2 * tolerance
-    assert empty_user.is_outdated(reference_date, tolerance, exclude_weekends)
+    # Test outdated / in future
+    empty_user.newest_date = reference_date + plus_or_minus * 2 * tolerance
+    assert infuture_or_outdated(empty_user, reference_date, tolerance, exclude_weekends)
 
     # Test within tolerance
-    empty_user.newest_date = reference_date - tolerance / 2
-    assert not empty_user.is_outdated(reference_date, tolerance, exclude_weekends)
+    if not special_case_0:
+        empty_user.newest_date = reference_date + plus_or_minus * tolerance / 2
+        assert not infuture_or_outdated(empty_user, reference_date, tolerance, exclude_weekends)
 
     # Test exactly at newest_date
     empty_user.newest_date = reference_date
-    assert not empty_user.is_outdated(reference_date, tolerance, exclude_weekends)
+    assert not infuture_or_outdated(empty_user, reference_date, tolerance, exclude_weekends)
 
-    # Test in future
-    empty_user.newest_date = reference_date + timedelta(days=10)
-    assert not empty_user.is_outdated(reference_date, tolerance, exclude_weekends)
-
-
-def test_user_is_outdated_tol0(empty_user, reference_date=datetime(2023, 7, 24, 13, 48, 10)):
-    """Tests User.is_outdated for a tolerance of 0."""
-
-    # Prepare user
-    empty_user.newest_path = None
-
-    # Test outdated
-    exclude_weekends = True
-    empty_user.newest_date = reference_date - timedelta(days=10)
-    assert empty_user.is_outdated(reference_date, timedelta(0), exclude_weekends)
-
-    # Test exactly at newest_date
-    empty_user.newest_date = reference_date
-    assert not empty_user.is_outdated(reference_date, timedelta(0), exclude_weekends)
-
-    # Test in future
-    empty_user.newest_date = reference_date + timedelta(days=10)
-    assert not empty_user.is_outdated(reference_date, timedelta(0), exclude_weekends)
-
-
-def test_user_is_in_future(empty_user,
-                           reference_date=datetime(2023, 7, 24, 13, 48, 10),
-                           tolerance=timedelta(days=10)):
-    """Tests User.is_in_future."""
-
-    # Prepare user
-    empty_user.newest_path = None
-
-    # Test in future
-    exclude_weekends = True
-    empty_user.newest_date = reference_date + 2 * tolerance
-    assert empty_user.is_in_future(reference_date, tolerance, exclude_weekends)
-
-    # Test within tolerance
-    empty_user.newest_date = reference_date + tolerance / 2
-    assert not empty_user.is_in_future(reference_date, tolerance, exclude_weekends)
-
-    # Test exactly at newest_date
-    empty_user.newest_date = reference_date
-    assert not empty_user.is_in_future(reference_date, tolerance, exclude_weekends)
-
-    # Test in past
-    empty_user.newest_date = reference_date - timedelta(days=10)
-    assert not empty_user.is_in_future(reference_date, tolerance, exclude_weekends)
-
-
-def test_user_is_in_future_tol0(empty_user, reference_date=datetime(2023, 7, 24, 13, 48, 10)):
-    """Tests User.is_outdated for a tolerance of 0."""
-
-    # Prepare user
-    empty_user.newest_path = None
-
-    # Test in future
-    exclude_weekends = True
-    empty_user.newest_date = reference_date + timedelta(days=10)
-    assert empty_user.is_in_future(reference_date, timedelta(0), exclude_weekends)
-
-    # Test exactly at newest_date
-    empty_user.newest_date = reference_date
-    assert not empty_user.is_in_future(reference_date, timedelta(0), exclude_weekends)
-
-    # Test in past
-    empty_user.newest_date = reference_date - timedelta(days=10)
-    assert not empty_user.is_in_future(reference_date, timedelta(0), exclude_weekends)
+    # Test outside opposite interval
+    empty_user.newest_date = reference_date - plus_or_minus * 2 * tolerance
+    assert not infuture_or_outdated(empty_user, reference_date, tolerance, exclude_weekends)
 
 
 # Test user_factory:
