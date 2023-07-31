@@ -170,7 +170,8 @@ class User:
             raise FileNotFoundError(f"Backup dir not found (user '{username}'): '{dir_backup}'")
         self._init_newest_file_and_date(dir_backup)
 
-    def is_outdated(self, reference_date: datetime, tolerance: timedelta) -> bool:
+    def is_outdated(self, reference_date: datetime, tolerance: timedelta = TOLERANCE_OUTDATED,
+                    exclude_weekends: bool = EXCLUDE_WEEKENDS) -> bool:
         """Determines whether the user has an outdated backup.
 
         This function essentially computes
@@ -182,15 +183,16 @@ class User:
                 today as the value, use datetime.now().
             tolerance: Tolerance period in which the most recent backup must have occurred to not be
                 outdated.
+            exclude_weekends: Whether to omit weekends when computing time differences.
 
         Returns:
             True if the user's backup is outdated.
         """
-        # TODO: Argument to include weekends
 
-        return time_difference(self.newest_date, reference_date) > tolerance
+        return time_difference(self.newest_date, reference_date, exclude_weekends) > tolerance
 
-    def is_in_future(self, reference_date: datetime, tolerance: timedelta) -> bool:
+    def is_in_future(self, reference_date: datetime, tolerance: timedelta = TOLERANCE_FUTURE,
+                     exclude_weekends: bool = EXCLUDE_WEEKENDS) -> bool:
         """Determines whether the user has a file with a timestamp in the future.
 
         This function essentially computes
@@ -202,13 +204,13 @@ class User:
                 today as the value, use datetime.now().
             tolerance: Tolerance period in which the user's newest date is allowed to occur while
                 is_in_future still returns False.
+            exclude_weekends: Whether to omit weekends when computing time differences.
 
         Returns:
             True if the user's backup has a file with a future timestamp.
         """
-        # TODO: Argument to include weekends
 
-        return time_difference(reference_date, self.newest_date) > tolerance
+        return time_difference(reference_date, self.newest_date, exclude_weekends) > tolerance
 
     def _init_newest_file_and_date(self, dir_base: Path):
         """Determines the most recent file in dir_base and subtrees and stores its path and date.
@@ -276,8 +278,12 @@ def user_factory(user_detection_lookups: dict, usernames_to_exclude: set[str]) -
 class StatusReporter:
     """Reporter for status messages of users with OK, outdated, and future backups."""
 
-    def __init__(self, users: list[User], reference_date: datetime,
-                 tolerance_outdated: timedelta, tolerance_future: timedelta):
+    def __init__(self,
+                 users: list[User],
+                 reference_date: datetime,
+                 tolerance_outdated: timedelta = TOLERANCE_OUTDATED,
+                 tolerance_future: timedelta = TOLERANCE_FUTURE,
+                 exclude_weekends: bool = EXCLUDE_WEEKENDS):
         """Initializes reporter.
 
         Args:
@@ -288,16 +294,20 @@ class StatusReporter:
                 to not be outdated.
             tolerance_future: Tolerance period in which the user's newest date is allowed to occur
                 while is_in_future still returns False.
+            exclude_weekends: Whether to omit weekends when computing time differences.
         """
         # Store args
         self.users = users.copy()
         self.tolerance_outdated = tolerance_outdated
         self.tolerance_future = tolerance_future
         self.reference_date = reference_date
+        self.exclude_weekends = exclude_weekends
 
         # Group users by backup status
-        future_users = {u for u in users if u.is_in_future(reference_date, tolerance_future)}
-        outdated_users = {u for u in users if u.is_outdated(reference_date, tolerance_outdated)}
+        future_users = {u for u in users
+                        if u.is_in_future(reference_date, tolerance_future, exclude_weekends)}
+        outdated_users = {u for u in users
+                          if u.is_outdated(reference_date, tolerance_outdated, exclude_weekends)}
         ok_users = {u for u in users if u not in outdated_users | future_users}
 
         self._issue_index = {
@@ -306,7 +316,7 @@ class StatusReporter:
             "ok_users": sorted(ok_users, key=lambda u: u.username),
         }
 
-    def get_report(self, message_template: str) -> str:
+    def get_report(self, message_template: str = ADMIN_STATUS_REPORT) -> str:
         """Status report of users with OK, outdated, and future backups.
 
         Args:
@@ -368,7 +378,7 @@ class MailReporter:
     """
 
     def __init__(self, reporter: StatusReporter, mail_client: MailClient,
-                 reminder_interval: timedelta, exclude_weekends: bool):
+                 reminder_interval: timedelta = REMINDER_INTERVAL):
         """Initializes the reporter.
 
         Args:
@@ -378,7 +388,6 @@ class MailReporter:
                 accepted (i.e. no hours, minutes, seconds, etc.). reminder_interval only determines
                 reminder emails that follow *after* the first email, which in turn is determined by
                 `reporter.tolerance_outdated`.
-            exclude_weekends: Whether to omit weekends when computing time differences.
         """
         if reminder_interval.seconds != 0 or reminder_interval.microseconds != 0:
             # This check uses that timedelta objects only store days, seconds, and microseconds,
@@ -387,7 +396,6 @@ class MailReporter:
         self._status_reporter = reporter
         self._mail_client = mail_client
         self._reminder_interval = reminder_interval
-        self._exclude_weekends = exclude_weekends
         self._future_recipients = list(reporter.future_users)
         self._outdated_recipients = [u for u in reporter.outdated_users if self._is_mail_due(u)]
 
@@ -401,7 +409,7 @@ class MailReporter:
         """The users with outdated backups who will get an email."""
         return self._outdated_recipients.copy()
 
-    def notify_outdated_recipients(self, subject: str, email_template: str):
+    def notify_outdated_recipients(self, subject: str, email_template: str = MAIL_OUTDATED):
         """Sends an email to the users with outdated backups.
 
         Args:
@@ -414,13 +422,14 @@ class MailReporter:
         Effects:
             Sends the email to the user.
         """
-        day_unit = "weekdays" if self._exclude_weekends else "days"
+        exclude_weekends = self._status_reporter.exclude_weekends
+        day_unit = "weekdays" if exclude_weekends else "days"
         reference_date = self._status_reporter.reference_date
 
         for user in self._future_recipients:
             # Assemble message
             date = user.newest_date
-            outdated_days = time_difference(date, reference_date, self._exclude_weekends).days
+            outdated_days = time_difference(date, reference_date, exclude_weekends).days
             message = email_template.format(date_last_backup=date.strftime("%Y-%m-%d"),
                                             outdated_days=f"{outdated_days} {day_unit}")
 
@@ -428,7 +437,7 @@ class MailReporter:
             self._mail_client.send_email(user, message, subject)
         # TODO: Instead of subject and email_template, notify_outdated_recipients should take a function taking a user as argument and returning subject and message. This avoids the dependence of MailReporter on the concrete fields to be replaced.
 
-    def notify_future_recipients(self, subject: str, email_template: str):
+    def notify_future_recipients(self, subject: str, email_template: str = MAIL_FUTURE):
         """Sends an email to the users with future files in their backups.
 
         Args:
@@ -459,13 +468,14 @@ class MailReporter:
             True if (i) the user has an *outdated* backup and (ii) the previous email was sent
             exactly the given reminder_interval ago.
         """
+        exclude_weekends = self._status_reporter.exclude_weekends
         reference_date = self._status_reporter.reference_date.date()  # no hours, minutes, etc.
         tolerance_outdated = self._status_reporter.tolerance_outdated
-        assert user.is_outdated(reference_date, tolerance_outdated)
+        assert user.is_outdated(reference_date, tolerance_outdated, exclude_weekends)
 
         # Compute day of first email
         date = user.newest_date
-        while time_difference(user.newest_date, date, self._exclude_weekends) <= tolerance_outdated:
+        while time_difference(user.newest_date, date, exclude_weekends) <= tolerance_outdated:
             date += timedelta(days=1)
         day_first_email = date.date()
 
@@ -474,7 +484,7 @@ class MailReporter:
             return False
         if reference_date == day_first_email:
             return True
-        days_since_first = time_difference(day_first_email, reference_date, self._exclude_weekends)
+        days_since_first = time_difference(day_first_email, reference_date, exclude_weekends)
         return days_since_first % self._reminder_interval == timedelta(0)
 
 
@@ -494,12 +504,13 @@ def main(mail_client: Optional[MailClient] = None):
         sys.exit(2)
 
     # Print status report
-    reporter = StatusReporter(users, datetime.now(), TOLERANCE_OUTDATED, TOLERANCE_FUTURE)
+    reporter = StatusReporter(users, datetime.now(), TOLERANCE_OUTDATED, TOLERANCE_FUTURE,
+                              EXCLUDE_WEEKENDS)
     print(reporter.get_report(ADMIN_STATUS_REPORT))
 
     # Notify individual users
     if mail_client:
-        mail_reporter = MailReporter(reporter, mail_client, REMINDER_INTERVAL, EXCLUDE_WEEKENDS)
+        mail_reporter = MailReporter(reporter, mail_client, REMINDER_INTERVAL)
         mail_reporter.notify_outdated_recipients(SUBJECT_OUTDATED, MAIL_OUTDATED)
         mail_reporter.notify_future_recipients(SUBJECT_FUTURE, MAIL_FUTURE)
 
