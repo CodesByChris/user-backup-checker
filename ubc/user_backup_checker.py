@@ -231,7 +231,7 @@ class User:
             for file in files:
                 file_path = dir_base / sub_root / file
                 try:
-                    file_date = file_path.stat(follow_symlinks=False).st_mtime
+                    file_date = file_path.lstat().st_mtime
                     file_date = datetime.fromtimestamp(file_date)
                 except FileNotFoundError:
                     # File has been deleted in the meantime, i.e. was updated just now.
