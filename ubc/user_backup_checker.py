@@ -33,67 +33,69 @@ import sys
 logger = getLogger(__name__)
 
 
-# Settings
-USERS_TO_EXCLUDE = set()  # usernames to skip
-USER_DETECTION_LOOKUPS = {
-    "local": {"home_dirs_glob": "/volume1/homes/[!@.]*/", "backup_subdir": "Drive/Backup/"},
-    "domain": {"home_dirs_glob": "/volume1/homes/@DH-D/*/*/", "backup_subdir": "Drive/Backup/"},
-    # For naming and location of home directories of domain users see:
-    #     https://kb.synology.com/en-us/DSM/help/DSM/AdminCenter/file_directory_service_user_group?version=7
-    # The example above assumes the domain D, hence "@DH-D".
+# Configuration
+CONFIG = {
+    # General
+    "USERS_TO_EXCLUDE": set(),  # usernames to skip
+    "USER_DETECTION_LOOKUPS": {
+        "local": {"home_dirs_glob": "/volume1/homes/[!@.]*/", "backup_subdir": "Drive/Backup/"},
+        "domain": {"home_dirs_glob": "/volume1/homes/@DH-D/*/*/", "backup_subdir": "Drive/Backup/"},
+        # For naming and location of home directories of domain users see:
+        #     https://kb.synology.com/en-us/DSM/help/DSM/AdminCenter/file_directory_service_user_group?version=7
+        # The example above assumes the domain D, hence "@DH-D".
+    },
+    "EXCLUDE_WEEKENDS": True,  # whether Saturdays and Sundays are not counted towards outdated days
+    "TOLERANCE_FUTURE": timedelta(days=1),  # Timespan for future files
+    "TOLERANCE_OUTDATED": timedelta(days=5),  # Timespan for outdated backups
+
+    # Individual user emails
+    "REMINDER_INTERVAL": timedelta(days=5),  # Interval for reminder emails after the initial email
+
+    # Mail Templates
+    "SUBJECT_OUTDATED": "Outdated backup",
+    "MAIL_OUTDATED": dedent("""
+        Dear user,
+
+        Your backup is outdated.
+
+        - Date of last backup:  {date_last_backup}  ({outdated_days} outdated)
+
+        Best regards,
+        user_backup_checker.py
+    """),
+
+    "SUBJECT_FUTURE": "Non-verifiable backup",
+    "MAIL_FUTURE": dedent("""
+        Dear user,
+
+        Your backup contains at least one file whose modification time lies in the future.
+
+        - File:               {path}
+        - Modification Time:  {date}
+
+        Because of this file, your backup cannot be validated correctly.
+
+        Best regards,
+        user_backup_checker.py
+    """),
+
+    "ADMIN_STATUS_REPORT": dedent("""
+        Outdated users:
+        {outdated_users}
+
+
+        Users with future files:
+        {future_users}
+
+
+        OK users:
+        {ok_users}
+
+
+        For an explanation of each position see the documentation in user_backup_checker.py
+
+    """)
 }
-EXCLUDE_WEEKENDS = True  # whether Saturdays and Sundays are not counted towards outdated days
-TOLERANCE_FUTURE = timedelta(days=1)  # Timespan for future files
-TOLERANCE_OUTDATED = timedelta(days=5)  # Timespan for outdated backups
-
-# Settings for individual user emails
-REMINDER_INTERVAL = timedelta(days=5)  # Interval for reminder emails after the initial email
-
-
-# Mail Templates
-SUBJECT_OUTDATED = "Outdated backup"
-MAIL_OUTDATED = dedent("""
-    Dear user,
-
-    Your backup is outdated.
-
-    - Date of last backup:  {date_last_backup}  ({outdated_days} outdated)
-
-    Best regards,
-    user_backup_checker.py
-""")
-
-SUBJECT_FUTURE = "Non-verifiable backup"
-MAIL_FUTURE = dedent("""
-    Dear user,
-
-    Your backup contains at least one file whose modification time lies in the future.
-
-    - File:               {path}
-    - Modification Time:  {date}
-
-    Because of this file, your backup cannot be validated correctly.
-
-    Best regards,
-    user_backup_checker.py
-""")
-
-ADMIN_STATUS_REPORT = dedent("""
-    Outdated users:
-    {outdated_users}
-
-
-    Users with future files:
-    {future_users}
-
-
-    OK users:
-    {ok_users}
-
-
-    For an explanation of each position see the documentation in user_backup_checker.py
-
-""")
 
 
 # Time Handling
@@ -116,8 +118,7 @@ def _round_to_monday(date: datetime) -> datetime:
     return date
 
 
-def time_difference(date_1: datetime, date_2: datetime,
-                    exclude_weekends: bool = EXCLUDE_WEEKENDS) -> timedelta:
+def time_difference(date_1: datetime, date_2: datetime, exclude_weekends: bool) -> timedelta:
     """Computes the time difference from date_1 to date_2.
 
     The difference is positive if date_1 <= date_2 and negative otherwise.
@@ -170,8 +171,8 @@ class User:
             raise FileNotFoundError(f"Backup dir not found (user '{username}'): '{dir_backup}'")
         self._init_newest_file_and_date(dir_backup)
 
-    def is_outdated(self, reference_date: datetime, tolerance: timedelta = TOLERANCE_OUTDATED,
-                    exclude_weekends: bool = EXCLUDE_WEEKENDS) -> bool:
+    def is_outdated(self, reference_date: datetime, tolerance: timedelta,
+                    exclude_weekends: bool) -> bool:
         """Determines whether the user has an outdated backup.
 
         This function essentially computes
@@ -191,8 +192,8 @@ class User:
 
         return time_difference(self.newest_date, reference_date, exclude_weekends) > tolerance
 
-    def is_in_future(self, reference_date: datetime, tolerance: timedelta = TOLERANCE_FUTURE,
-                     exclude_weekends: bool = EXCLUDE_WEEKENDS) -> bool:
+    def is_in_future(self, reference_date: datetime, tolerance: timedelta,
+                     exclude_weekends: bool) -> bool:
         """Determines whether the user has a file with a timestamp in the future.
 
         This function essentially computes
@@ -278,12 +279,8 @@ def user_factory(user_detection_lookups: dict, usernames_to_exclude: set[str]) -
 class StatusReporter:
     """Reporter for status messages of users with OK, outdated, and future backups."""
 
-    def __init__(self,
-                 users: list[User],
-                 reference_date: datetime,
-                 tolerance_outdated: timedelta = TOLERANCE_OUTDATED,
-                 tolerance_future: timedelta = TOLERANCE_FUTURE,
-                 exclude_weekends: bool = EXCLUDE_WEEKENDS):
+    def __init__(self, users: list[User], reference_date: datetime, tolerance_outdated: timedelta,
+                 tolerance_future: timedelta, exclude_weekends: bool):
         """Initializes reporter.
 
         Args:
@@ -316,7 +313,7 @@ class StatusReporter:
             "ok_users": sorted(ok_users, key=lambda u: u.username),
         }
 
-    def get_report(self, message_template: str = ADMIN_STATUS_REPORT) -> str:
+    def get_report(self, message_template: str) -> str:
         """Status report of users with OK, outdated, and future backups.
 
         Args:
@@ -378,7 +375,7 @@ class MailReporter:
     """
 
     def __init__(self, reporter: StatusReporter, mail_client: MailClient,
-                 reminder_interval: timedelta = REMINDER_INTERVAL):
+                 reminder_interval: timedelta):
         """Initializes the reporter.
 
         Args:
@@ -409,7 +406,7 @@ class MailReporter:
         """The users with outdated backups who will get an email."""
         return self._outdated_recipients.copy()
 
-    def notify_outdated_recipients(self, subject: str, email_template: str = MAIL_OUTDATED):
+    def notify_outdated_recipients(self, subject: str, email_template: str):
         """Sends an email to the users with outdated backups.
 
         Args:
@@ -437,7 +434,7 @@ class MailReporter:
             self._mail_client.send_email(user, message, subject)
         # TODO: Instead of subject and email_template, notify_outdated_recipients should take a function taking a user as argument and returning subject and message. This avoids the dependence of MailReporter on the concrete fields to be replaced.
 
-    def notify_future_recipients(self, subject: str, email_template: str = MAIL_FUTURE):
+    def notify_future_recipients(self, subject: str, email_template: str):
         """Sends an email to the users with future files in their backups.
 
         Args:
@@ -489,7 +486,7 @@ class MailReporter:
 
 
 # Main
-def main(mail_client: Optional[MailClient] = None):
+def main(config: dict, mail_client: Optional[MailClient] = None):
     """Main function of the script."""
 
     # Configure log to show after report
@@ -498,21 +495,21 @@ def main(mail_client: Optional[MailClient] = None):
     logger.setLevel(WARNING)
 
     # Get users and their backup state
-    users = user_factory(USER_DETECTION_LOOKUPS, USERS_TO_EXCLUDE)
+    users = user_factory(config["USER_DETECTION_LOOKUPS"], config("USERS_TO_EXCLUDE"))
     if not users:
         print("ERROR: No user found on Synology.")
         sys.exit(2)
 
     # Print status report
-    reporter = StatusReporter(users, datetime.now(), TOLERANCE_OUTDATED, TOLERANCE_FUTURE,
-                              EXCLUDE_WEEKENDS)
-    print(reporter.get_report(ADMIN_STATUS_REPORT))
+    reporter = StatusReporter(users, datetime.now(), config("TOLERANCE_OUTDATED"),
+                              config("TOLERANCE_FUTURE"), config("EXCLUDE_WEEKENDS"))
+    print(reporter.get_report(config("ADMIN_STATUS_REPORT")))
 
     # Notify individual users
     if mail_client:
-        mail_reporter = MailReporter(reporter, mail_client, REMINDER_INTERVAL)
-        mail_reporter.notify_outdated_recipients(SUBJECT_OUTDATED, MAIL_OUTDATED)
-        mail_reporter.notify_future_recipients(SUBJECT_FUTURE, MAIL_FUTURE)
+        mail_reporter = MailReporter(reporter, mail_client, config("REMINDER_INTERVAL"))
+        mail_reporter.notify_outdated_recipients(config("SUBJECT_OUTDATED"), config("MAIL_OUTDATED"))
+        mail_reporter.notify_future_recipients(config("SUBJECT_FUTURE"), config("MAIL_FUTURE"))
 
     # Print log
     if not message_queue.empty():
@@ -523,4 +520,4 @@ def main(mail_client: Optional[MailClient] = None):
 
 
 if __name__ == "__main__":
-    main(mail_client=None)
+    main(CONFIG, mail_client=None)

@@ -34,20 +34,21 @@ def test_user_is_outdated(empty_user,
     empty_user.newest_path = None
 
     # Test outdated
+    exclude_weekends = True
     empty_user.newest_date = reference_date - 2 * tolerance
-    assert empty_user.is_outdated(reference_date, tolerance)
+    assert empty_user.is_outdated(reference_date, tolerance, exclude_weekends)
 
     # Test within tolerance
     empty_user.newest_date = reference_date - tolerance / 2
-    assert not empty_user.is_outdated(reference_date, tolerance)
+    assert not empty_user.is_outdated(reference_date, tolerance, exclude_weekends)
 
     # Test exactly at newest_date
     empty_user.newest_date = reference_date
-    assert not empty_user.is_outdated(reference_date, tolerance)
+    assert not empty_user.is_outdated(reference_date, tolerance, exclude_weekends)
 
     # Test in future
     empty_user.newest_date = reference_date + timedelta(days=10)
-    assert not empty_user.is_outdated(reference_date, tolerance)
+    assert not empty_user.is_outdated(reference_date, tolerance, exclude_weekends)
 
 
 def test_user_is_outdated_tol0(empty_user, reference_date=datetime(2023, 7, 24, 13, 48, 10)):
@@ -57,16 +58,17 @@ def test_user_is_outdated_tol0(empty_user, reference_date=datetime(2023, 7, 24, 
     empty_user.newest_path = None
 
     # Test outdated
+    exclude_weekends = True
     empty_user.newest_date = reference_date - timedelta(days=10)
-    assert empty_user.is_outdated(reference_date, timedelta(0))
+    assert empty_user.is_outdated(reference_date, timedelta(0), exclude_weekends)
 
     # Test exactly at newest_date
     empty_user.newest_date = reference_date
-    assert not empty_user.is_outdated(reference_date, timedelta(0))
+    assert not empty_user.is_outdated(reference_date, timedelta(0), exclude_weekends)
 
     # Test in future
     empty_user.newest_date = reference_date + timedelta(days=10)
-    assert not empty_user.is_outdated(reference_date, timedelta(0))
+    assert not empty_user.is_outdated(reference_date, timedelta(0), exclude_weekends)
 
 
 def test_user_is_in_future(empty_user,
@@ -78,20 +80,21 @@ def test_user_is_in_future(empty_user,
     empty_user.newest_path = None
 
     # Test in future
+    exclude_weekends = True
     empty_user.newest_date = reference_date + 2 * tolerance
-    assert empty_user.is_in_future(reference_date, tolerance)
+    assert empty_user.is_in_future(reference_date, tolerance, exclude_weekends)
 
     # Test within tolerance
     empty_user.newest_date = reference_date + tolerance / 2
-    assert not empty_user.is_in_future(reference_date, tolerance)
+    assert not empty_user.is_in_future(reference_date, tolerance, exclude_weekends)
 
     # Test exactly at newest_date
     empty_user.newest_date = reference_date
-    assert not empty_user.is_in_future(reference_date, tolerance)
+    assert not empty_user.is_in_future(reference_date, tolerance, exclude_weekends)
 
     # Test in past
     empty_user.newest_date = reference_date - timedelta(days=10)
-    assert not empty_user.is_in_future(reference_date, tolerance)
+    assert not empty_user.is_in_future(reference_date, tolerance, exclude_weekends)
 
 
 def test_user_is_in_future_tol0(empty_user, reference_date=datetime(2023, 7, 24, 13, 48, 10)):
@@ -101,16 +104,17 @@ def test_user_is_in_future_tol0(empty_user, reference_date=datetime(2023, 7, 24,
     empty_user.newest_path = None
 
     # Test in future
+    exclude_weekends = True
     empty_user.newest_date = reference_date + timedelta(days=10)
-    assert empty_user.is_in_future(reference_date, timedelta(0))
+    assert empty_user.is_in_future(reference_date, timedelta(0), exclude_weekends)
 
     # Test exactly at newest_date
     empty_user.newest_date = reference_date
-    assert not empty_user.is_in_future(reference_date, timedelta(0))
+    assert not empty_user.is_in_future(reference_date, timedelta(0), exclude_weekends)
 
     # Test in past
     empty_user.newest_date = reference_date - timedelta(days=10)
-    assert not empty_user.is_in_future(reference_date, timedelta(0))
+    assert not empty_user.is_in_future(reference_date, timedelta(0), exclude_weekends)
 
 
 # Test user_factory:
