@@ -23,7 +23,7 @@ from logging import getLogger, WARNING
 from logging.handlers import QueueHandler
 from datetime import datetime, timedelta
 from glob import glob
-from os import path, stat, walk
+from os import path, walk
 from queue import Queue
 from textwrap import dedent
 from pathlib import Path
@@ -229,9 +229,9 @@ class User:
         self.newest_date = None
         for sub_root, _, files in walk(dir_base):
             for file in files:
-                file_path = path.join(dir_base, sub_root, file)
+                file_path = dir_base / sub_root / file
                 try:
-                    file_date = stat(file_path, follow_symlinks=False).st_mtime
+                    file_date = file_path.stat(follow_symlinks=False).st_mtime
                     file_date = datetime.fromtimestamp(file_date)
                 except FileNotFoundError:
                     # File has been deleted in the meantime, i.e. was updated just now.
