@@ -18,7 +18,7 @@ Exit codes:
     2: No user found on Synology.
 """
 
-from typing import Optional
+from typing import Optional, Self
 from logging import getLogger, WARNING
 from logging.handlers import QueueHandler
 from datetime import datetime, timedelta
@@ -213,6 +213,15 @@ class User:
 
         return time_difference(reference_date, self.newest_date, exclude_weekends) > tolerance
 
+    def __eq__(self, other: Self) -> bool:
+        return (self.username == other.username and
+                self.dir_backup == other.dir_backup and
+                self.newest_date == other.newest_date and
+                self.newest_path == other.newest_path)
+
+    def __hash__(self) -> int:
+        return hash((self.username, self.dir_backup, self.newest_date, self.newest_path))
+
     def _init_newest_file_and_date(self, dir_base: Path):
         """Determines the most recent file in dir_base and subtrees and stores its path and date.
 
@@ -243,17 +252,20 @@ class User:
                     self.newest_date = file_date
 
 
-def user_factory(user_detection_lookups: dict, usernames_to_exclude: set[str]) -> list[User]:
+def user_factory(user_detection_lookups: dict,
+                 users_to_exclude: Optional[set[str]] = None) -> list[User]:
     """Collects all users and their backup state on the Synology server.
 
     Args:
         user_detection_lookups: Lookup for different locations where the Synology stores home
-            directories. Typically, this value is USER_DETECTION_LOOKUPS.
-        usernames_to_exclude: Exclude users in this list. Typically, this value is USERS_TO_EXCLUDE.
+            directories. Typically, it is USER_DETECTION_LOOKUPS.
+        users_to_exclude: Exclude users in this list. Typically, it is USERS_TO_EXCLUDE.
 
     Returns:
         The collected users.
     """
+    if not users_to_exclude:
+        users_to_exclude = set()
     users = {}
     for lookup in user_detection_lookups.values():
         # Collect all home directories
@@ -263,7 +275,7 @@ def user_factory(user_detection_lookups: dict, usernames_to_exclude: set[str]) -
         # Create users
         for home_dir in home_dirs:
             name = home_dir.name  # last component of path
-            if name in usernames_to_exclude:
+            if name in users_to_exclude:
                 continue
             if name in users:
                 raise RuntimeError(f"More than one user has name: {name}")

@@ -1,94 +1,9 @@
 """Tests for User class."""
 
-import os
 from datetime import datetime, timedelta
-from pathlib import Path
-from tempfile import TemporaryDirectory
 import pytest
 from pytest_lazyfixture import lazy_fixture
-from ubc.user_backup_checker import User
-
-
-def set_modification_date(file: Path, new_date: datetime):
-    """Sets the modification date of a given file to new_date."""
-    assert file.exists(), f"File at path must exist: {file}"
-    timestamp = new_date.timestamp()
-    os.utime(file, times=(timestamp, timestamp))
-
-
-def init_mock_files(path_root: Path):
-    """Initializes a mock folder tree with given root path.
-
-    Tree is:
-    - path_root/
-        - Documents/
-            - old_file_1.txt   (timestamp: 2020-01-01 00:00.00, content: "f1")
-            - newest_file.txt  (timestamp: 2020-01-15 00:00.00, content: "f2")
-        - Desktop/
-            - old_file_2.txt   (timestamp: 2020-01-08 00:00.00, content: "f3")
-    """
-    # Create old_file_1.txt
-    documents_dir = path_root / "Documents"
-    documents_dir.mkdir(parents=True)
-    file_1 = documents_dir / "old_file_1.txt"
-    file_1.write_text("f1")
-    set_modification_date(file_1, datetime(2020, 1, 1, 0, 0, 0))
-
-    # Create old_file_2.txt
-    desktop_dir = path_root / "Desktop"
-    desktop_dir.mkdir(parents=True)
-    file_2 = documents_dir / "old_file_2.txt"
-    file_2.write_text("f2")
-    set_modification_date(file_2, datetime(2020, 1, 8, 0, 0, 0))
-
-    # Create newest_file_1.txt
-    file_3 = documents_dir / "newest_file.txt"
-    file_3.write_text("f3")
-    set_modification_date(file_3, datetime(2020, 1, 15, 0, 0, 0))
-
-
-@pytest.fixture
-def paths_localuser_homes() -> Path:
-    """Yields root of mock folder tree replicating where Synology stores local users' homes."""
-    with TemporaryDirectory() as temp_dir:
-        path_root = Path(temp_dir)
-        path_homes = path_root / "volume1" / "homes"
-        path_homes.mkdir(parents=True)
-        yield path_root, path_homes
-
-
-@pytest.fixture
-def empty_localuser(paths_localuser_homes, name="empty_localuser") -> User:
-    """Returns a local-user with no files in the backup directory."""
-    backup_dir = paths_localuser_homes[1] / name / "Drive" / "Backup"
-    backup_dir.mkdir(parents=True)
-    return User(name, backup_dir)
-
-
-@pytest.fixture
-def simple_localuser(paths_localuser_homes, name="simple_localuser") -> User:
-    """Returns a local-user with a simple folder tree in backup directory (see init_mock_files)."""
-    backup_dir = paths_localuser_homes[1] / name / "Drive" / "Backup"
-    init_mock_files(backup_dir)
-    return User(name, backup_dir)
-
-
-@pytest.fixture
-def paths_domainuser_homes() -> Path:
-    """Yields root of mock folder tree replicating where Synology stores domain users' homes."""
-    with TemporaryDirectory() as temp_dir:
-        path_root = Path(temp_dir)
-        path_homes = path_root / "volume1" / "homes" / "@DH-D"
-        path_homes.mkdir(parents=True)
-        yield path_root, path_homes
-
-
-@pytest.fixture
-def simple_domainuser(paths_domainuser_homes, id="3", name="simple_domainuser"):
-    """Returns a domain-user with a simple folder tree in backup directory (see init_mock_files)."""
-    backup_dir = paths_domainuser_homes[1] / id / name / "Drive" / "Backup"
-    init_mock_files(backup_dir)
-    return User(name, backup_dir)
+from ubc.user_backup_checker import User, user_factory
 
 
 @pytest.mark.parametrize("infuture_or_outdated", [User.is_in_future, User.is_outdated])
@@ -139,6 +54,36 @@ def test_user_folder_missing(paths_localuser_homes, name="broken_localuser"):
         User(name, paths_localuser_homes[1] / name / "Drive" / "Backup")
 
 
+def test_user_factory(simple_localuser, simple_localuser_2, simple_domainuser, simple_domainuser_2,
+                      path_syno_root):
+    """Tests the base functionality."""
+    users = [simple_localuser, simple_localuser_2, simple_domainuser, simple_domainuser_2]
+
+    # Collect users from factory
+    user_detection_lookups = {
+        "local": {"home_dirs_glob": f"{path_syno_root}/volume1/homes/[!@.]*/",
+                  "backup_subdir": "Drive/Backup/"},
+        "domain": {"home_dirs_glob": f"{path_syno_root}/volume1/homes/@DH-D/*/*/",
+                   "backup_subdir": "Drive/Backup/"},
+    }
+    factory_users = user_factory(user_detection_lookups)
+
+    # Validate users
+    assert len(factory_users) == len(users)
+    for user in users:
+        # Get corresponding user from factory
+        user_f = None
+        for user_f in factory_users:
+            if user_f.username == user.username:
+                break
+        else:
+            assert False  # user not found in users_factory
+
+        # Compare users
+        assert user == user_f
+
 # Test user_factory:
 #     - Does it throw an error when the same username exists twice (e.g. local user and domain user)
+#     - Test exclude_users
+#     - Test logging broken users in user_factory
 # Test exit codes (e.g. when no user exists on Synology).
