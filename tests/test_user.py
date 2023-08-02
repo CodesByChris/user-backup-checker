@@ -1,4 +1,4 @@
-"""Tests for user_backup_checker.py"""
+"""Tests for User class."""
 
 import os
 from datetime import datetime, timedelta
