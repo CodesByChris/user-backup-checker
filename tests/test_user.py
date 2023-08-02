@@ -55,10 +55,10 @@ def test_user_folder_missing(paths_localuser_homes, name="broken_localuser"):
 
 
 def test_user_factory(simple_localuser, simple_localuser_2, simple_domainuser, simple_domainuser_2,
-                      user_detection_lookups):
+                      user_detection_lookup):
     """Tests the base functionality."""
     users = [simple_localuser, simple_localuser_2, simple_domainuser, simple_domainuser_2]
-    factory_users = user_factory(user_detection_lookups)
+    factory_users = user_factory(user_detection_lookup)
 
     # Validate users
     assert len(factory_users) == len(users)
@@ -76,21 +76,37 @@ def test_user_factory(simple_localuser, simple_localuser_2, simple_domainuser, s
         assert hash(user) == hash(user_f)
 
 
-def test_user_factory_exclude(simple_domainuser, simple_domainuser_2, user_detection_lookups):
+def test_user_factory_exclude(simple_domainuser, simple_domainuser_2, user_detection_lookup):
     """Tests user_factory's users_to_exclude functionality."""
 
     # Test excluded simple_domainuser_2
-    users_1 = user_factory(user_detection_lookups, {"simple_domainuser_2"})
+    users_1 = user_factory(user_detection_lookup, {"simple_domainuser_2"})
     assert len(users_1) == 1
     assert users_1[0] == simple_domainuser
 
     # Test excluded simple_domainuser
-    users_2 = user_factory(user_detection_lookups, {"simple_domainuser"})
+    users_2 = user_factory(user_detection_lookup, {"simple_domainuser"})
     assert len(users_2) == 1
     assert users_2[0] == simple_domainuser_2
 
+
+def test_user_factory_broken_user(simple_domainuser, paths_domainuser_homes, user_detection_lookup,
+                                  caplog):
+    """Tests whether a user with no backup directory is logged."""
+
+    # Create broken user's home folder
+    username = "broken_domainuser"
+    dir_backup = paths_domainuser_homes[1] / "8" / username / "Drive"
+    dir_backup.mkdir(parents=True)
+
+    # Test
+    users = user_factory(user_detection_lookup)
+    assert len(users) == 1
+    assert users[0] == simple_domainuser
+    assert len(caplog.records) == 1, "Exactly one log entry expected."
+    assert caplog.record_tuples[0][2].startswith(f"Backup dir not found (user '{username}'):")
+
+
 # Test user_factory:
 #     - Does it throw an error when the same username exists twice (e.g. local user and domain user)
-#     - Test exclude_users
-#     - Test logging broken users in user_factory
 # Test exit codes (e.g. when no user exists on Synology).

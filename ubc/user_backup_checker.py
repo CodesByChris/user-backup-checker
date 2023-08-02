@@ -279,11 +279,13 @@ def user_factory(user_detection_lookups: dict,
                 continue
             if name in users:
                 raise RuntimeError(f"More than one user has name: {name}")
+
             try:
                 user = User(name, dir_backup=home_dir / Path(lookup["backup_subdir"]))
             except FileNotFoundError as error:
                 logger.warning(str(error))
-            users[name] = user
+            else:
+                users[name] = user
     return list(users.values())
 
 
