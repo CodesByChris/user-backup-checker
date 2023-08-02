@@ -116,6 +116,17 @@ def paths_localuser_homes(path_syno_root) -> Path:
 
 
 @pytest.fixture
+def user_detection_lookups(path_syno_root) -> dict:
+    """Constructs user_detection_lookup to find local- and domain-users in the mock file system."""
+    return {
+        "local": {"home_dirs_glob": f"{path_syno_root}/volume1/homes/[!@.]*/",
+                  "backup_subdir": "Drive/Backup/"},
+        "domain": {"home_dirs_glob": f"{path_syno_root}/volume1/homes/@DH-D/*/*/",
+                   "backup_subdir": "Drive/Backup/"},
+    }
+
+
+@pytest.fixture
 def paths_domainuser_homes(path_syno_root) -> Path:
     """Yields root of mock folder tree replicating where Synology stores domain users' homes."""
     path_homes = path_syno_root / "volume1" / "homes" / "@DH-D"

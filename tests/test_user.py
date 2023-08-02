@@ -55,17 +55,9 @@ def test_user_folder_missing(paths_localuser_homes, name="broken_localuser"):
 
 
 def test_user_factory(simple_localuser, simple_localuser_2, simple_domainuser, simple_domainuser_2,
-                      path_syno_root):
+                      user_detection_lookups):
     """Tests the base functionality."""
     users = [simple_localuser, simple_localuser_2, simple_domainuser, simple_domainuser_2]
-
-    # Collect users from factory
-    user_detection_lookups = {
-        "local": {"home_dirs_glob": f"{path_syno_root}/volume1/homes/[!@.]*/",
-                  "backup_subdir": "Drive/Backup/"},
-        "domain": {"home_dirs_glob": f"{path_syno_root}/volume1/homes/@DH-D/*/*/",
-                   "backup_subdir": "Drive/Backup/"},
-    }
     factory_users = user_factory(user_detection_lookups)
 
     # Validate users
@@ -81,6 +73,21 @@ def test_user_factory(simple_localuser, simple_localuser_2, simple_domainuser, s
 
         # Compare users
         assert user == user_f
+        assert hash(user) == hash(user_f)
+
+
+def test_user_factory_exclude(simple_domainuser, simple_domainuser_2, user_detection_lookups):
+    """Tests user_factory's users_to_exclude functionality."""
+
+    # Test excluded simple_domainuser_2
+    users_1 = user_factory(user_detection_lookups, {"simple_domainuser_2"})
+    assert len(users_1) == 1
+    assert users_1[0] == simple_domainuser
+
+    # Test excluded simple_domainuser
+    users_2 = user_factory(user_detection_lookups, {"simple_domainuser"})
+    assert len(users_2) == 1
+    assert users_2[0] == simple_domainuser_2
 
 # Test user_factory:
 #     - Does it throw an error when the same username exists twice (e.g. local user and domain user)
