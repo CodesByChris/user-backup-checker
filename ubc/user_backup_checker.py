@@ -18,7 +18,7 @@ Exit codes:
     2: No user found on Synology.
 """
 
-from typing import Optional, Self
+from typing import Optional
 from logging import getLogger, WARNING
 from logging.handlers import QueueHandler
 from datetime import datetime, timedelta
@@ -213,7 +213,7 @@ class User:
 
         return time_difference(reference_date, self.newest_date, exclude_weekends) > tolerance
 
-    def __eq__(self, other: Self) -> bool:
+    def __eq__(self, other: object) -> bool:
         return (self.username == other.username and
                 self.dir_backup == other.dir_backup and
                 self.newest_date == other.newest_date and
