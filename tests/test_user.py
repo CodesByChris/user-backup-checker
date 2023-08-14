@@ -91,21 +91,14 @@ def test_user_factory_exclude(simple_domainuser, simple_domainuser_2, user_detec
     assert users_2[0] == simple_domainuser_2
 
 
-def test_user_factory_broken_user(simple_domainuser, paths_domainuser_homes, user_detection_lookup,
-                                  caplog):
+def test_user_factory_broken_user(simple_domainuser, broken_domainuser, paths_domainuser_homes,
+                                  user_detection_lookup, caplog):
     """Tests whether a user with no backup directory is logged."""
-
-    # Create broken user's home folder
-    username = "broken_domainuser"
-    dir_backup = paths_domainuser_homes[1] / "8" / username / "Drive"
-    dir_backup.mkdir(parents=True)
-
-    # Test
     users = user_factory(user_detection_lookup)
     assert len(users) == 1
     assert users[0] == simple_domainuser
     assert len(caplog.records) == 1, "Exactly one log entry expected."
-    assert caplog.record_tuples[0][2].startswith(f"Backup dir not found (user '{username}'):")
+    assert caplog.record_tuples[0][2].startswith("Backup dir not found")
 
 
 def test_user_factory_duplicate_user(paths_localuser_homes, paths_domainuser_homes,

@@ -149,6 +149,14 @@ def empty_localuser(paths_localuser_homes) -> User:
 
 
 @pytest.fixture
+def broken_domainuser(paths_domainuser_homes) -> None:
+    """Initializes a user with a Drive folder but no backup directory inside."""
+    username = "broken_domainuser"
+    dir_backup = paths_domainuser_homes[1] / "8" / username / "Drive"
+    dir_backup.mkdir(parents=True)
+
+
+@pytest.fixture
 def simple_localuser(paths_localuser_homes) -> User:
     """Returns a local-user with simple folder tree in backup directory (see init_mock_files)."""
     return make_localuser("simple_localuser", paths_localuser_homes[1], init_mock_files)
