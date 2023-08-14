@@ -509,21 +509,21 @@ def main(config: dict, mail_client: Optional[MailClient] = None):
     logger.setLevel(WARNING)
 
     # Get users and their backup state
-    users = user_factory(config["USER_DETECTION_LOOKUPS"], config("USERS_TO_EXCLUDE"))
+    users = user_factory(config["USER_DETECTION_LOOKUPS"], config["USERS_TO_EXCLUDE"])
     if not users:
         print("ERROR: No user found on Synology.")
         sys.exit(2)
 
     # Print status report
-    reporter = StatusReporter(users, datetime.now(), config("TOLERANCE_OUTDATED"),
-                              config("TOLERANCE_FUTURE"), config("EXCLUDE_WEEKENDS"))
-    print(reporter.get_report(config("ADMIN_STATUS_REPORT")))
+    reporter = StatusReporter(users, datetime.now(), config["TOLERANCE_OUTDATED"],
+                              config["TOLERANCE_FUTURE"], config["EXCLUDE_WEEKENDS"])
+    print(reporter.get_report(config["ADMIN_STATUS_REPORT"]))
 
     # Notify individual users
     if mail_client:
-        mail_reporter = MailReporter(reporter, mail_client, config("REMINDER_INTERVAL"))
-        mail_reporter.notify_outdated_recipients(config("SUBJECT_OUTDATED"), config("MAIL_OUTDATED"))
-        mail_reporter.notify_future_recipients(config("SUBJECT_FUTURE"), config("MAIL_FUTURE"))
+        mail_reporter = MailReporter(reporter, mail_client, config["REMINDER_INTERVAL"])
+        mail_reporter.notify_outdated_recipients(config["SUBJECT_OUTDATED"], config["MAIL_OUTDATED"])
+        mail_reporter.notify_future_recipients(config["SUBJECT_FUTURE"], config["MAIL_FUTURE"])
 
     # Print log
     if not message_queue.empty():

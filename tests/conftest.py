@@ -6,7 +6,8 @@ from datetime import datetime
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import pytest
-from ubc.user_backup_checker import User
+from unittest.mock import patch
+from ubc.user_backup_checker import CONFIG, User
 
 
 def set_modification_date(file: Path, new_date: datetime):
@@ -135,6 +136,13 @@ def user_detection_lookup(path_syno_root) -> dict:
 
 
 @pytest.fixture
+def config_test(user_detection_lookup) -> dict:
+    """Patches CONFIG to find users in the testing directories."""
+    with patch.dict(CONFIG, USER_DETECTION_LOOKUPS=user_detection_lookup):
+        yield CONFIG
+
+
+@pytest.fixture
 def empty_localuser(paths_localuser_homes) -> User:
     """Returns a local-user with no files in the backup directory."""
     return make_localuser("empty_localuser", paths_localuser_homes[1], None)
@@ -153,12 +161,12 @@ def simple_localuser_2(paths_localuser_homes) -> User:
 
 
 @pytest.fixture
-def simple_domainuser(paths_domainuser_homes):
+def simple_domainuser(paths_domainuser_homes) -> User:
     """Returns a domain-user with simple folder tree in backup directory (see init_mock_files)."""
     return make_domainuser("simple_domainuser", "3", paths_domainuser_homes[1], init_mock_files)
 
 
 @pytest.fixture
-def simple_domainuser_2(paths_domainuser_homes):
+def simple_domainuser_2(paths_domainuser_homes) -> User:
     """Returns a domain-user with simple folder tree in backup directory (see init_mock_files_2)."""
     return make_domainuser("simple_domainuser_2", "8", paths_domainuser_homes[1], init_mock_files_2)
