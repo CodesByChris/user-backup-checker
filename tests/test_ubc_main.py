@@ -1,5 +1,6 @@
 """Tests for main UBC script."""
 
+from textwrap import dedent
 import pytest
 from ubc.user_backup_checker import main
 
