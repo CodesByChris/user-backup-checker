@@ -503,7 +503,7 @@ class MailReporter:
 def main(config: dict, mail_client: Optional[MailClient] = None):
     """Main function of the script."""
 
-    # Configure log to show after report
+    # Cache log to make it appears *below* report
     message_queue = Queue()
     logger.addHandler(QueueHandler(message_queue))
     logger.setLevel(WARNING)
@@ -529,7 +529,7 @@ def main(config: dict, mail_client: Optional[MailClient] = None):
     if not message_queue.empty():
         print("Log:")
         while not message_queue.empty():
-            print(message_queue.get())
+            print(f"- {message_queue.get().getMessage()}")
     sys.exit(0)
 
 
