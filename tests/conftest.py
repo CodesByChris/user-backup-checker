@@ -208,6 +208,8 @@ def mock_reporter_args(empty_localuser: User) -> dict:
         - "tolerance_outdated",
         - "tolerance_future",
         - "exclude_weekends".
+        For CONFIG["REMINDER_INTERVAL"] as 5 days, user "outdated_1" gets an email and "outdated_2"
+        does not.
     """
     reference_date = datetime(2023, 8, 2)
     tolerance = timedelta(days=10)
@@ -216,8 +218,8 @@ def mock_reporter_args(empty_localuser: User) -> dict:
         mock_user("future_2",   datetime(2030, 1, 1),  is_outdated=False, is_in_future=True),
         mock_user("ok_1",       datetime(2023, 8, 9),  is_outdated=False, is_in_future=False),
         mock_user("ok_2",       datetime(2023, 7, 26), is_outdated=False, is_in_future=False),
-        mock_user("outdated_1", datetime(2023, 7, 17), is_outdated=True,  is_in_future=False),
-        mock_user("outdated_2", datetime(2000, 1, 1),  is_outdated=True,  is_in_future=False),
+        mock_user("outdated_1", datetime(2023, 7, 11), is_outdated=True,  is_in_future=False),
+        mock_user("outdated_2", datetime(2023, 7, 13), is_outdated=True,  is_in_future=False),
     ]
     return {"users": users, "reference_date": reference_date, "tolerance_outdated": tolerance,
             "tolerance_future": tolerance, "exclude_weekends": True}

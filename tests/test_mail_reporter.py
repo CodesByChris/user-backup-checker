@@ -23,6 +23,14 @@ def test_no_future_recipients(mock_reporter_args):
 
 
 # Test MailReporter.outdated_recipients
+def test_outdated_recipients(reporter):
+    """Tests 2 outdated users & one gets mail, the other not."""
+    mail_reporter = MailReporter(reporter, MagicMock(spec=MailClient), timedelta(days=5))
+    recipient = reporter.users[4]
+    assert recipient.username == "outdated_1"
+    assert mail_reporter.outdated_recipients == [recipient]
+
+
 def test_outdated_recipients_tolerance_date():
     """Tests whether an outdated user receives the first email on the day right after tolerance."""
     user = mock_user("gets_mail", datetime(2023, 8, 2), is_outdated=True, is_in_future=False)
@@ -30,16 +38,6 @@ def test_outdated_recipients_tolerance_date():
     reporter = StatusReporter([user], datetime(2023, 8, 10), tolerance, tolerance, True)
     mail_reporter = MailReporter(reporter, MagicMock(spec=MailClient), tolerance)
     assert mail_reporter.outdated_recipients == [user]
-
-
-def test_two_outdated_recipients():
-    """Tests 2 outdated users & one gets mail, the other not."""
-    users = [mock_user("gets_mail", datetime(2023, 8, 2), is_outdated=True, is_in_future=False),
-             mock_user("no_mail", datetime(2023, 8, 3), is_outdated=True, is_in_future=False)]
-    tolerance = timedelta(days=5)
-    reporter = StatusReporter(users, datetime(2023, 8, 17), tolerance, tolerance, True)
-    mail_reporter = MailReporter(reporter, MagicMock(spec=MailClient), tolerance)
-    assert mail_reporter.outdated_recipients == [users[0]]
 
 
 def test_no_outdated_recipients(mock_reporter_args):
@@ -71,13 +69,7 @@ def test_no_users(mock_reporter_args):
 
 # - notify_outdated_recipients():
 #     - >1 persons,
-#     - no users
 #     - Compare produced mails
 # - notify_future_recipients():
 #     - >1 persons,
-#     - no users
 #     - Compare produced mail
-
-
-# - Unify notify_future* and notify_outdated* into combined test functions!
-#     - Doesn't work for all tests of the getters! Different logic!

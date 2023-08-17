@@ -20,8 +20,8 @@ def test_report(reporter: StatusReporter):
     """Tests report generation."""
     expected_report = dedent("""
         Outdated users:
-        - outdated_1  (2023-07-17)
-        - outdated_2  (2000-01-01)
+        - outdated_1  (2023-07-11)
+        - outdated_2  (2023-07-13)
 
 
         Users with future files:
