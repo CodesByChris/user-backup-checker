@@ -185,12 +185,12 @@ def mock_reporter_args(empty_localuser: User) -> dict:
     """Returns a test setup.
 
     Returns:
-        A tuple with the following entries:
-        0. users: List of six mock users (2 future, 2 OK, 2 outdated),
-        1. reference_date,
-        2. tolerance_outdated,
-        3. tolerance_future,
-        4. exclude_weekends.
+        Test setup as dict with following keys:
+        - "users": List of six mock users (2 future, 2 OK, 2 outdated),
+        - "reference_date",
+        - "tolerance_outdated",
+        - "tolerance_future",
+        - "exclude_weekends".
     """
     def _mock(name, newest_date, is_outdated, is_future):
         attributes = {"username": name, "newest_date": newest_date, "newest_path": f"/{name}"}
