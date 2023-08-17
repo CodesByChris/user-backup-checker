@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 import pytest
 from pytest_lazyfixture import lazy_fixture
 from ubc.user_backup_checker import User, user_factory
-from .conftest import make_domainuser, make_localuser, init_mock_files, init_mock_files_2
+from .conftest import domainuser, localuser, init_mock_files, init_mock_files_2
 
 
 @pytest.mark.parametrize("infuture_or_outdated", [User.is_in_future, User.is_outdated])
@@ -105,7 +105,7 @@ def test_user_factory_duplicate_user(paths_localuser_homes, paths_domainuser_hom
                                      user_detection_lookup):
     """Tests whether user_factory stops when multiple users with same username exist."""
     username = "my_user"
-    make_localuser(username, paths_localuser_homes[1], init_mock_files)
-    make_domainuser(username, "8", paths_domainuser_homes[1], init_mock_files_2)
+    localuser(username, paths_localuser_homes[1], init_mock_files)
+    domainuser(username, "8", paths_domainuser_homes[1], init_mock_files_2)
     with pytest.raises(Exception, match=f"More than one user has name: {username}"):
         user_factory(user_detection_lookup)

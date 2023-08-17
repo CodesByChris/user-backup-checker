@@ -482,7 +482,6 @@ class MailReporter:
         exclude_weekends = self._status_reporter.exclude_weekends
         reference_date = self._status_reporter.reference_date.date()  # no hours, minutes, etc.
         tolerance_outdated = self._status_reporter.tolerance_outdated
-        assert user.is_outdated(reference_date, tolerance_outdated, exclude_weekends)
 
         # Compute day of first email
         date = user.newest_date

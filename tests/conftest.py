@@ -82,7 +82,7 @@ def init_mock_files_2(path_root: Path):
     set_modification_date(file_2, datetime(2020, 1, 15, 0, 0, 0))
 
 
-def make_localuser(name: str, dir_userhomes: Path, file_initializer: Union[Callable, None]):
+def localuser(name: str, dir_userhomes: Path, file_initializer: Union[Callable, None]) -> User:
     """Initializes a user."""
     backup_dir = dir_userhomes / name / "Drive" / "Backup"
     backup_dir.mkdir(parents=True)
@@ -91,14 +91,31 @@ def make_localuser(name: str, dir_userhomes: Path, file_initializer: Union[Calla
     return User(name, backup_dir)
 
 
-def make_domainuser(user_name: str, user_id: str, dir_userhomes: Path,
-                    file_initializer: Union[Callable, None]):
+def domainuser(user_name: str, user_id: str, dir_userhomes: Path,
+               file_initializer: Union[Callable, None]) -> User:
     """Initializes a user."""
     backup_dir = dir_userhomes / user_id / user_name / "Drive" / "Backup"
     backup_dir.mkdir(parents=True)
     if file_initializer:
         file_initializer(backup_dir)
     return User(user_name, backup_dir)
+
+
+def mock_user(username: str, newest_date: datetime, is_outdated: bool, is_in_future: bool) -> User:
+    """Creates a mock User for given attribute values.
+
+    Args:
+        username: Value for username attribute.
+        newest_date: Value for newest_date attribute.
+        is_outdated: Value for is_outdated attribute.
+        is_in_future: Value for is_in_future attribute.
+
+    Returns:
+        Constructed mock user.
+    """
+    attributes = {"username": username, "newest_date": newest_date, "newest_path": f"/{username}"}
+    methods = {"is_in_future.return_value": is_in_future, "is_outdated.return_value": is_outdated}
+    return Mock(**attributes, **methods)
 
 
 @pytest.fixture
@@ -145,7 +162,7 @@ def config_test(user_detection_lookup) -> dict:
 @pytest.fixture
 def empty_localuser(paths_localuser_homes) -> User:
     """Returns a local-user with no files in the backup directory."""
-    return make_localuser("empty_localuser", paths_localuser_homes[1], None)
+    return localuser("empty_localuser", paths_localuser_homes[1], None)
 
 
 @pytest.fixture
@@ -159,25 +176,25 @@ def broken_domainuser(paths_domainuser_homes) -> None:
 @pytest.fixture
 def simple_localuser(paths_localuser_homes) -> User:
     """Returns a local-user with simple folder tree in backup directory (see init_mock_files)."""
-    return make_localuser("simple_localuser", paths_localuser_homes[1], init_mock_files)
+    return localuser("simple_localuser", paths_localuser_homes[1], init_mock_files)
 
 
 @pytest.fixture
 def simple_localuser_2(paths_localuser_homes) -> User:
     """Returns a local-user with simple folder tree in backup directory (see init_mock_files_2)."""
-    return make_localuser("simple_localuser_2", paths_localuser_homes[1], init_mock_files_2)
+    return localuser("simple_localuser_2", paths_localuser_homes[1], init_mock_files_2)
 
 
 @pytest.fixture
 def simple_domainuser(paths_domainuser_homes) -> User:
     """Returns a domain-user with simple folder tree in backup directory (see init_mock_files)."""
-    return make_domainuser("simple_domainuser", "3", paths_domainuser_homes[1], init_mock_files)
+    return domainuser("simple_domainuser", "3", paths_domainuser_homes[1], init_mock_files)
 
 
 @pytest.fixture
 def simple_domainuser_2(paths_domainuser_homes) -> User:
     """Returns a domain-user with simple folder tree in backup directory (see init_mock_files_2)."""
-    return make_domainuser("simple_domainuser_2", "8", paths_domainuser_homes[1], init_mock_files_2)
+    return domainuser("simple_domainuser_2", "8", paths_domainuser_homes[1], init_mock_files_2)
 
 
 @pytest.fixture
@@ -192,20 +209,15 @@ def mock_reporter_args(empty_localuser: User) -> dict:
         - "tolerance_future",
         - "exclude_weekends".
     """
-    def _mock(name, newest_date, is_outdated, is_future):
-        attributes = {"username": name, "newest_date": newest_date, "newest_path": f"/{name}"}
-        methods = {"is_in_future.return_value": is_future, "is_outdated.return_value": is_outdated}
-        return Mock(spec=empty_localuser, **attributes, **methods)
-
     reference_date = datetime(2023, 8, 2)
     tolerance = timedelta(days=10)
     users = [
-        _mock("future_1",   datetime(2023, 8, 20), is_outdated=False, is_future=True),
-        _mock("future_2",   datetime(2030, 1, 1),  is_outdated=False, is_future=True),
-        _mock("ok_1",       datetime(2023, 8, 9),  is_outdated=False, is_future=False),
-        _mock("ok_2",       datetime(2023, 7, 26), is_outdated=False, is_future=False),
-        _mock("outdated_1", datetime(2023, 7, 17), is_outdated=True,  is_future=False),
-        _mock("outdated_2", datetime(2000, 1, 1),  is_outdated=True,  is_future=False),
+        mock_user("future_1",   datetime(2023, 8, 20), is_outdated=False, is_in_future=True),
+        mock_user("future_2",   datetime(2030, 1, 1),  is_outdated=False, is_in_future=True),
+        mock_user("ok_1",       datetime(2023, 8, 9),  is_outdated=False, is_in_future=False),
+        mock_user("ok_2",       datetime(2023, 7, 26), is_outdated=False, is_in_future=False),
+        mock_user("outdated_1", datetime(2023, 7, 17), is_outdated=True,  is_in_future=False),
+        mock_user("outdated_2", datetime(2000, 1, 1),  is_outdated=True,  is_in_future=False),
     ]
     return {"users": users, "reference_date": reference_date, "tolerance_outdated": tolerance,
             "tolerance_future": tolerance, "exclude_weekends": True}
