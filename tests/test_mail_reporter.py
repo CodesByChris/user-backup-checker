@@ -1,7 +1,7 @@
 """Tests for MailReporter."""
 
 from datetime import datetime, timedelta
-from unittest.mock import MagicMock
+from unittest.mock import call, MagicMock
 from ubc.user_backup_checker import CONFIG, MailClient, MailReporter, StatusReporter
 from .conftest import mock_user
 
@@ -20,6 +20,24 @@ def test_no_future_recipients(mock_reporter_args):
                                    if not u.username.startswith("future_")]
     mail_reporter = MailReporter(StatusReporter(**mock_reporter_args), MagicMock(), timedelta(days=5))
     assert not mail_reporter.future_recipients
+
+
+def test_notify_future_recipients(reporter):
+    """Tests MailReporter.notify_future_recipients."""
+    mail_mock = MagicMock(spec=MailClient)
+    mail_reporter = MailReporter(reporter, mail_mock, timedelta(days=5))
+
+    # Notify users
+    subject = CONFIG["SUBJECT_FUTURE"]
+    message = CONFIG["MAIL_FUTURE"]
+    mail_reporter.notify_future_recipients(subject, message)
+
+    # Check mails
+    def _make_call(user, subject=subject, message_template=message):
+        message = message_template.format(path=user.newest_path, date=user.newest_date)
+        return call(user, subject, message)
+    assert mail_mock.send_email.call_count == 2
+    assert mail_mock.send_email.call_args_list == [_make_call(u) for u in reporter.users[0:2]]
 
 
 # Test MailReporter.outdated_recipients
@@ -65,11 +83,3 @@ def test_no_users(mock_reporter_args):
     mail_reporter.notify_outdated_recipients(CONFIG["SUBJECT_OUTDATED"], CONFIG["MAIL_OUTDATED"])
     mail_mock.send_email.assert_not_called()
     mail_mock.get_email_address.assert_not_called()
-
-
-# - notify_outdated_recipients():
-#     - >1 persons,
-#     - Compare produced mails
-# - notify_future_recipients():
-#     - >1 persons,
-#     - Compare produced mail

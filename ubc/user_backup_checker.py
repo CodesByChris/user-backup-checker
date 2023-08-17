@@ -71,7 +71,7 @@ CONFIG = {
         Your backup contains at least one file whose modification time lies in the future.
 
         - File:               {path}
-        - Modification Time:  {date}
+        - Modification Time:  {date:%Y-%m-%d}
 
         Because of this file, your backup cannot be validated correctly.
 
@@ -462,8 +462,7 @@ class MailReporter:
             Sends the email to the user.
         """
         for user in self._future_recipients:
-            message = email_template.format(path=user.newest_path,
-                                            date=user.newest_date.strftime("%Y-%m-%d"))
+            message = email_template.format(path=user.newest_path, date=user.newest_date)
             self._mail_client.send_email(user, subject, message)
 
     def _is_mail_due(self, user: User) -> bool:
