@@ -2,7 +2,8 @@
 
 from datetime import datetime, timedelta
 from unittest.mock import call, MagicMock
-from ubc.user_backup_checker import CONFIG, MailClient, MailReporter, StatusReporter
+from ubc.user_backup_checker import (CONFIG, MailClient, MailReporter, StatusReporter,
+                                     time_difference)
 from .conftest import mock_user
 
 
@@ -36,17 +37,16 @@ def test_notify_future_recipients(reporter):
     def _make_call(user, subject=subject, message_template=message):
         message = message_template.format(path=user.newest_path, date=user.newest_date)
         return call(user, subject, message)
-    assert mail_mock.send_email.call_count == 2
-    assert mail_mock.send_email.call_args_list == [_make_call(u) for u in reporter.users[0:2]]
+    recipients = mail_reporter.future_recipients
+    assert mail_mock.send_email.call_count == len(recipients)
+    assert mail_mock.send_email.call_args_list == list(map(_make_call, recipients))
 
 
 # Test MailReporter.outdated_recipients
 def test_outdated_recipients(reporter):
     """Tests 2 outdated users & one gets mail, the other not."""
     mail_reporter = MailReporter(reporter, MagicMock(spec=MailClient), timedelta(days=5))
-    recipient = reporter.users[4]
-    assert recipient.username == "outdated_1"
-    assert mail_reporter.outdated_recipients == [recipient]
+    assert mail_reporter.outdated_recipients == [reporter.users[4]]  # only outdated_1 is recipient
 
 
 def test_outdated_recipients_tolerance_date():
@@ -65,6 +65,28 @@ def test_no_outdated_recipients(mock_reporter_args):
     tolerance = timedelta(days=5)
     mail_reporter = MailReporter(StatusReporter(**mock_reporter_args), MagicMock(), tolerance)
     assert not mail_reporter.outdated_recipients
+
+
+def test_notify_outdated_recipients(reporter):
+    """Tests MailReporter.notify_outdated_recipients."""
+    mail_mock = MagicMock(spec=MailClient)
+    mail_reporter = MailReporter(reporter, mail_mock, timedelta(days=5))
+
+    # Notify users
+    subject = CONFIG["SUBJECT_OUTDATED"]
+    message = CONFIG["MAIL_OUTDATED"]
+    mail_reporter.notify_outdated_recipients(subject, message)
+
+    # Check mails
+    def _make_call(user, reporter=reporter, subject=subject, message_template=message):
+        date = user.newest_date
+        outdated_days = time_difference(date, reporter.reference_date, reporter.exclude_weekends)
+        unit = "weekdays" if reporter.exclude_weekends else "days"
+        message = message_template.format(date=date, outdated_days=f"{outdated_days.days} {unit}")
+        return call(user, subject, message)
+    recipients = mail_reporter.outdated_recipients
+    assert mail_mock.send_email.call_count == len(recipients)
+    assert mail_mock.send_email.call_args_list == list(map(_make_call, recipients))
 
 
 # Test no users

@@ -58,7 +58,7 @@ CONFIG = {
 
         Your backup is outdated.
 
-        - Date of last backup:  {date_last_backup}  ({outdated_days} outdated)
+        - Date of last backup:  {date:%Y-%m-%d}  ({outdated_days} outdated)
 
         Best regards,
         user_backup_checker.py
@@ -427,7 +427,7 @@ class MailReporter:
             subject: Subject of the emails. The same subject is sent to all users.
             email_template: Template of the email to send to users. It should contain the following
                 placeholders, which are replaced individually for each user:
-                - {date_last_backup}: Date of the user's last backup.
+                - {date}: Date of the user's last backup.
                 - {outdated_days}: Number of days the last backup is in the past compared to today.
 
         Effects:
@@ -437,15 +437,14 @@ class MailReporter:
         day_unit = "weekdays" if exclude_weekends else "days"
         reference_date = self._status_reporter.reference_date
 
-        for user in self._future_recipients:
+        for user in self._outdated_recipients:
             # Assemble message
             date = user.newest_date
             outdated_days = time_difference(date, reference_date, exclude_weekends).days
-            message = email_template.format(date_last_backup=date.strftime("%Y-%m-%d"),
-                                            outdated_days=f"{outdated_days} {day_unit}")
+            message = email_template.format(date=date, outdated_days=f"{outdated_days} {day_unit}")
 
             # Send message
-            self._mail_client.send_email(user, message, subject)
+            self._mail_client.send_email(user, subject, message)
         # TODO: Instead of subject and email_template, notify_outdated_recipients should take a function taking a user as argument and returning subject and message. This avoids the dependence of MailReporter on the concrete fields to be replaced.
 
     def notify_future_recipients(self, subject: str, email_template: str):
