@@ -13,3 +13,12 @@ UBC periodically creates a report with the latest backup dates of users.
 Optionally, it can automatically send emails to users with outdated backups and notify them about the problem.
 
 UBC is a third-party script that has no association with Synology.
+
+
+## Copyright
+
+UBC is released under the *GNU Affero General Public License v3.0*
+
+Copyright 2023, ETH Zurich.
+
+Developer: Christian Zingg as employee at Chair of Systems Design, ETH Zurich.
