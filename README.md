@@ -32,10 +32,9 @@ UBC is a third-party script that has no association with Synology.
 
 ## Setup
 
-### Basic Setup
-
-Follow these steps to set up UBC's core functionality without the optional email notifications to users with outdated backups.
+Follow these steps to set up UBC on a Synology server.
 To complete this setup, you need Synology server admin privileges.
+Note that the optional email notifications for users with outdated backups have to be configured separately, see [Configuration](#configuration).
 
 1. Open `ubc/user_backup_checker.py` in a text editor and adjust the settings to your preferences.
     See also [Configuration](#configuration) for the details.
@@ -66,6 +65,9 @@ To complete this setup, you need Synology server admin privileges.
 7. Confirm with _OK_.
 
 Done!
+
+
+## Configuration
 
 
 ## Copyright
