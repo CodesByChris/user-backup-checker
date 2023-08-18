@@ -253,13 +253,15 @@ class User:
 
 
 def user_factory(user_detection_lookups: dict,
-                 users_to_exclude: Optional[set[str]] = None) -> list[User]:
+                 users_to_exclude: Optional[set] = None) -> list:
     """Collects all users and their backup state on the Synology server.
 
     Args:
         user_detection_lookups: Lookup for different locations where the Synology stores home
             directories. Typically, it is USER_DETECTION_LOOKUPS.
-        users_to_exclude: Exclude users in this list. Typically, it is USERS_TO_EXCLUDE.
+        users_to_exclude: Exclude users in this list. Typically, it is USERS_TO_EXCLUDE. Note that
+            this argument takes a set of _usernames_ and _not_ User objects. Example:
+            `users_to_exclude={"myuser1", "myuser2"}`.
 
     Returns:
         The collected users.
@@ -293,12 +295,12 @@ def user_factory(user_detection_lookups: dict,
 class StatusReporter:
     """Reporter for status messages of users with OK, outdated, and future backups."""
 
-    def __init__(self, users: list[User], reference_date: datetime, tolerance_outdated: timedelta,
+    def __init__(self, users: list, reference_date: datetime, tolerance_outdated: timedelta,
                  tolerance_future: timedelta, exclude_weekends: bool):
         """Initializes reporter.
 
         Args:
-            users: Users that shall be included in the status report.
+            users: List of User objects that shall be included in the status report.
             reference_date: Timestamp compared to which the user's backup shall be outdated or
                 future. To use today as the value, use datetime.now().
             tolerance_outdated: Tolerance period in which the most recent backup must have occurred
@@ -353,17 +355,17 @@ class StatusReporter:
         return message_template.format(**replacements)
 
     @property
-    def outdated_users(self) -> list[User]:
+    def outdated_users(self) -> list:
         """The users with outdated backups, sorted by ascending usernames."""
         return self._issue_index["outdated_users"].copy()
 
     @property
-    def future_users(self) -> list[User]:
+    def future_users(self) -> list:
         """The users with backups containing future-dated files, sorted by ascending usernames."""
         return self._issue_index["future_users"].copy()
 
     @property
-    def ok_users(self) -> list[User]:
+    def ok_users(self) -> list:
         """The users with neither outdated nor future backups, sorted by ascending usernames."""
         return self._issue_index["ok_users"].copy()
 
@@ -411,12 +413,12 @@ class MailReporter:
         self._outdated_recipients = [u for u in reporter.outdated_users if self._is_mail_due(u)]
 
     @property
-    def future_recipients(self) -> list[User]:
+    def future_recipients(self) -> list:
         """The users with future-dated files who will get an email."""
         return self._future_recipients.copy()
 
     @property
-    def outdated_recipients(self) -> list[User]:
+    def outdated_recipients(self) -> list:
         """The users with outdated backups who will get an email."""
         return self._outdated_recipients.copy()
 
