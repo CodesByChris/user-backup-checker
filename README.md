@@ -80,6 +80,60 @@ Done!
 
 ## Configuration
 
+### Regular Settings
+
+This section explains the settings that you can set in `ubc/user_backup_checker.py`.
+All settings are contained in the dict `CONFIG`.
+(`user_backup_checker.py` can be loaded as a module, which allows to set settings in an external script and leave the original file unchanged!)
+
+The settings are:
+- `USERS_TO_EXCLUDE`:
+    Usernames that UBC shall not check, given as a Python `set`.
+    You can mix local and domain users here, and UBC ensures that usernames are unique across both types.
+- `USER_DETECTION_LOOKUPS`:
+    - Nested dictionary structure specifying UBC's search patterns to detect users and their backup directories on the Synology server.
+        - _Outer dictionary level:_ Keys are the user types (e.g. `local`, `domain`) and values are the corresponding search patterns (see inner dictionary level).
+        - _Inner dictionary level:_ Inner dicts have two keys:
+            1. `"home_dirs_glob"`: Glob pattern that expands to the users' home folders.
+                The last component of each matched path has to be the user name.
+            2. `"backup_subdir"`: Path to the Synology Drive backup folder relative to a user's home folder.
+    - See here for naming and location of home directories of domain and LDAP users: https://kb.synology.com/en-us/DSM/help/DSM/AdminCenter/file_directory_service_user_group?version=7
+- `EXCLUDE_WEEKENDS`: If `True`, Saturdays and Sundays are not counted towards the age of a backup.
+    Moreover, if `True`, UBC sends no emails to individual users on these days either.
+    This setting is useful, for example, if all users work Monday to Friday.
+- `TOLERANCE_FUTURE`:
+    - Number of days into the future in which UBC does not consider modification dates of files as future-dated yet.
+        Setting this tolerance may be useful if users in different time zones perform backups.
+- `TOLERANCE_OUTDATED`:
+    - Maximum age of a backup to not be considered outdated yet.
+- `REMINDER_INTERVAL`:
+    - Interval (in days) at which UBC sends users a reminder email for their outdated backup.
+        For example, a value of `timedelta(days=1)` means that users shall receive an email every single day after the age of their backup surpasses `TOLERANCE_OUTDATED`, or `timedelta(days=3)` means that they receive such an email only every three days.
+        Emailing users daily may be counter-productive because they may start ignoring these emails.
+        (This setting is only used when user notifications are enabled.)
+- `SUBJECT_OUTDATED`:
+    - Subject of an email to a user with an outdated backup.
+        (This setting is only used when user notifications are enabled.)
+- `MAIL_OUTDATED`:
+    - Text of an email to a user with an outdated backup.
+        This message needs to contain the strings `{date}` and `{outdated_days}`, which will be replaced for each user separately by the date and age of the last backup.
+        (This setting is only used when user notifications are enabled.)
+- `SUBJECT_FUTURE`:
+    - Subject of an email to a user with a future-dated backup.
+        (This setting is only used when user notifications are enabled.)
+- `MAIL_FUTURE`:
+    - Text of an email to a user with a future-dated backup.
+        This message needs to contain the strings `{path}` and `{date}`, which will be replaced for each user separately by the path and date of the future-dated file.
+        (This setting is only used when user notifications are enabled.)
+- `ADMIN_STATUS_REPORT`:
+    - Text of status report to server admins.
+        This message needs to contain the strings `{outdated_users}`, `{future_users}`, and `{ok_users}`, which will be replaced by the usernames of the outdated, future-dated, and OK users.
+
+
+### Enabling User Notifications
+
+...
+
 
 ## Copyright
 
