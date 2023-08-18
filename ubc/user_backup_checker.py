@@ -94,6 +94,7 @@ CONFIG = {
     """),
 
     "ADMIN_STATUS_REPORT": dedent("""
+
         Outdated users:
         {outdated_users}
 

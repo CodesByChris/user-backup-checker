@@ -6,6 +6,8 @@
 
 Integrity checker for user backups performed via Synology Drive.
 
+![UBC report with YAML coloring.](docs/images/ubc.png)
+
 User Backup Checker (UBC) is a backend script for server administrators that warns them about users whose Synology Drive tool no longer performs backups.
 Synology Drive is a precious tool enabling multiple users to perform backups and synchronize files to a central Synology server.
 However, server administrators have no tool that actively alerts them when specific users stop performing backups, for example, because they forget to unpause Synology Drive or it can no longer reach the server after they change their passwords.
