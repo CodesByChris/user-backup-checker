@@ -28,6 +28,7 @@ def test_exit_0_with_reporting(config_test, simple_domainuser, broken_domainuser
     # Test output (i.e. protocol)
     missing_backup_dir = paths_domainuser_homes[1] / "8" / "broken_domainuser" / "Drive" / "Backup"
     expected = dedent(f"""
+
         Outdated users:
         - simple_domainuser  (2020-01-15)
 
