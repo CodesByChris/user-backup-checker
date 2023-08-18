@@ -27,6 +27,17 @@ UBC follows these design philosophies:
 3. **Privacy-focused: UBC does not collect usage data.**
     UBC itself does not communicate with anything outside the server except for the emails to server admins and users.
 
+UBC detects two types of issues in user backups:
+1. **Outdated backups:**
+    If the most recent modification date of any file in a user's backup directory is older than a specified number of days, UBC reports the user's backup as outdated.
+2. **Future-dated files in backups:**
+    If the most recent modification date of any file in a user's backup directory is in the future, UBC reports this user as future-dated.
+    This scenario may, for example, arise when a user sets timestamps manually or when checking OS-related applications.
+    However, such future-dated timestamps may confuse UBC's backup recency-detection algorithm.
+    This algorithm determines whether the newest file's modification date is not older than a given number of days.
+    As a result, a future-dated timestamp could wrongly appear recent for a significant period, potentially hundreds of years, thereby shadowing the user's actual backup process.
+    To avoid misclassifications, UBC reports such users in a separate category.
+
 UBC is a third-party script that has no association with Synology.
 
 
