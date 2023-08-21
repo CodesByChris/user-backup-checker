@@ -147,8 +147,8 @@ def time_difference(timestamp_1: Union[datetime, date], timestamp_2: Union[datet
         timestamp_1: First point in time.
         timestamp_2: Second point in time.
         exclude_weekends: If True, weekends are omitted in the time-difference computation. If True
-            and timestamp_1 or timestamp_2 fall on a weekend, they are rounded to the next Monday, 00:00
-            o'clock.
+            and timestamp_1 or timestamp_2 fall on a weekend, they are rounded to the next Monday,
+            00:00 o'clock.
 
     Returns:
         Computed time difference.

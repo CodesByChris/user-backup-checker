@@ -132,7 +132,19 @@ The settings are:
 
 ### Enabling User Notifications
 
-...
+UBC can periodically email users with outdated backups or future-dated files to notify them of the problem.
+However, there is no interface for third-party programs to send emails via the connection configured in _Control Panel_ &rarr; _Notification_ &rarr; _Email_.
+Therefore, you need to configure a separate email service so that UBC can send user notifications.
+Proceed as follows:
+
+1. Create a subclass of `MailClient` that implements the methods `get_email_address` and `send_email`.
+    For most Synology setups, this likely means connecting via SMTP to an existing email address, which UBC then uses to send the emails to individual users.
+    The following Python modules may be of help:
+    - [smtplib](https://docs.python.org/3/library/smtplib.html)
+    - [email](https://docs.python.org/3/library/email.html)
+2. Call `main()` with an instance of your `MailClient` (sub-)class for the argument `mail_client`.
+
+By doing so, UBC will enable the user notification feature and use the object you pass to send the emails.
 
 
 ## Copyright
