@@ -32,10 +32,10 @@ Copyright (C) 2023  ETH Zurich (Developer: Christian Zingg as employee at Chair 
     program. If not, see <https://www.gnu.org/licenses/>.
 """
 
-from typing import Optional
+from typing import Optional, Union
 from logging import getLogger, WARNING
 from logging.handlers import QueueHandler
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from glob import glob
 from os import path, walk
 from queue import Queue
@@ -114,7 +114,7 @@ CONFIG = {
 
 
 # Time Handling
-def _round_to_monday(date: datetime) -> datetime:
+def _round_to_monday(timestamp: Union[datetime, date]) -> datetime:
     """Rounds date to the *next* Monday at 00:00 o'clock.
 
     Example:
@@ -124,51 +124,54 @@ def _round_to_monday(date: datetime) -> datetime:
     """
 
     # Shift to next Monday
-    date += timedelta(days=1)
-    while date.isoweekday() != 1:
-        date += timedelta(days=1)
+    timestamp += timedelta(days=1)
+    while timestamp.isoweekday() != 1:
+        timestamp += timedelta(days=1)
 
-    # Shift to midnight
-    date = date.replace(hour=0, minute=0, second=0, microsecond=0)
-    return date
+    # Shift to midnight (datetime only)
+    if isinstance(timestamp, datetime):
+        timestamp = timestamp.replace(hour=0, minute=0, second=0, microsecond=0)
+    return timestamp
 
 
-def time_difference(date_1: datetime, date_2: datetime, exclude_weekends: bool) -> timedelta:
-    """Computes the time difference from date_1 to date_2.
+def time_difference(timestamp_1: Union[datetime, date], timestamp_2: Union[datetime, date],
+                    exclude_weekends: bool) -> timedelta:
+    """Computes the time difference from timestamp_1 to timestamp_2.
 
-    The difference is positive if date_1 <= date_2 and negative otherwise.
+    The difference is positive if timestamp_1 <= timestamp_2 and negative otherwise.
 
     This function essentially does the same as numpy.busday_count. However, numpy is not part of
     Synology's Python package, and therefore is not used here.
 
     Args:
-        date_1: First point in time.
-        date_2: Second point in time.
+        timestamp_1: First point in time.
+        timestamp_2: Second point in time.
         exclude_weekends: If True, weekends are omitted in the time-difference computation. If True
-            and date_1 or date_2 fall on a weekend, they are rounded to the next Monday, 00:00
+            and timestamp_1 or timestamp_2 fall on a weekend, they are rounded to the next Monday, 00:00
             o'clock.
 
     Returns:
         Computed time difference.
     """
 
-    # Ensure date_1 <= date_2
-    if date_1 > date_2:
-        return -time_difference(date_1=date_2, date_2=date_1, exclude_weekends=exclude_weekends)
+    # Ensure timestamp_1 <= timestamp_2
+    if timestamp_1 > timestamp_2:
+        return -time_difference(timestamp_1=timestamp_2, timestamp_2=timestamp_1,
+                                exclude_weekends=exclude_weekends)
 
     # Handle times on weekends
-    if exclude_weekends and date_1.isoweekday() in {6, 7}:
-        date_1 = _round_to_monday(date_1)
-    if exclude_weekends and date_2.isoweekday() in {6, 7}:
-        date_2 = _round_to_monday(date_2)
+    if exclude_weekends and timestamp_1.isoweekday() in {6, 7}:
+        timestamp_1 = _round_to_monday(timestamp_1)
+    if exclude_weekends and timestamp_2.isoweekday() in {6, 7}:
+        timestamp_2 = _round_to_monday(timestamp_2)
 
     # Compute difference
     day_difference = 0
-    while date_1 < date_2:
-        if not exclude_weekends or date_1.isoweekday() not in {6, 7}:
+    while timestamp_1 < timestamp_2:
+        if not exclude_weekends or timestamp_1.isoweekday() not in {6, 7}:
             day_difference += 1
-        date_1 += timedelta(days=1)
-    return (date_2 - date_1) + timedelta(days=day_difference)
+        timestamp_1 += timedelta(days=1)
+    return (timestamp_2 - timestamp_1) + timedelta(days=day_difference)
 
 
 # User Class
@@ -424,8 +427,7 @@ class MailReporter:
         self._status_reporter = reporter
         self._mail_client = mail_client
         self._reminder_interval = reminder_interval
-        self._future_recipients = list(reporter.future_users)
-        self._outdated_recipients = [u for u in reporter.outdated_users if self._is_mail_due(u)]
+        self._init_future_and_outdated_recipients()
 
     @property
     def future_recipients(self) -> list:
@@ -491,18 +493,25 @@ class MailReporter:
             user: User to check
 
         Returns:
-            True if (i) the user has an *outdated* backup and (ii) the previous email was sent
-            exactly the given reminder_interval ago.
+            True if (i) the user has an *outdated* backup, (ii) the previous email was sent
+            precisely the given reminder_interval ago, and (iii) reference_date is not a weekend if
+            exclude_weekends is True. Condition (iii) is also checked here because it is part of the
+            logic of whether an outdated user shall receive an email, but
+            _init_future_and_outdated_recipients handles this case as well.
         """
+
+        # Handle mails on weekends
         exclude_weekends = self._status_reporter.exclude_weekends
         reference_date = self._status_reporter.reference_date.date()  # no hours, minutes, etc.
-        tolerance_outdated = self._status_reporter.tolerance_outdated
+        if exclude_weekends and reference_date.isoweekday() in {6, 7}:
+            return False
 
         # Compute day of first email
-        date = user.newest_date
-        while time_difference(user.newest_date, date, exclude_weekends) <= tolerance_outdated:
-            date += timedelta(days=1)
-        day_first_email = date.date()
+        tolerance_outdated = self._status_reporter.tolerance_outdated
+        timestamp = user.newest_date
+        while time_difference(user.newest_date, timestamp, exclude_weekends) <= tolerance_outdated:
+            timestamp += timedelta(days=1)
+        day_first_email = timestamp.date()
 
         # Check if an email is due on reference_date.
         if reference_date < day_first_email:
@@ -511,6 +520,21 @@ class MailReporter:
             return True
         days_since_first = time_difference(day_first_email, reference_date, exclude_weekends)
         return days_since_first % self._reminder_interval == timedelta(0)
+
+    def _init_future_and_outdated_recipients(self):
+        """Initializes self._future_recipients and self._outdated_recipients."""
+        # Handle mails on weekends
+        reporter = self._status_reporter
+        exclude_weekends = reporter.exclude_weekends
+        reference_date = reporter.reference_date
+        if exclude_weekends and reference_date.isoweekday() in {6, 7}:
+            self._future_recipients = []
+            self._outdated_recipients = []
+            return
+
+        # Regular case
+        self._future_recipients = list(reporter.future_users)
+        self._outdated_recipients = [u for u in reporter.outdated_users if self._is_mail_due(u)]
 
 
 # Main
