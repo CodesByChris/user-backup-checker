@@ -23,7 +23,7 @@ def test_exit_0_with_reporting(config_test, simple_domainuser, broken_domainuser
 
     # Test log
     assert len(caplog.records) == 1
-    assert caplog.record_tuples[0][2].startswith("Backup dir not found")
+    assert caplog.record_tuples[0][2].startswith("Missing backup dir")
 
     # Test output (i.e. protocol)
     missing_backup_dir = paths_domainuser_homes[1] / "8" / "broken_domainuser" / "Drive" / "Backup"
@@ -45,7 +45,7 @@ def test_exit_0_with_reporting(config_test, simple_domainuser, broken_domainuser
 
 
         Log:
-        - Backup dir not found (user 'broken_domainuser'): '{missing_backup_dir}'
+        - Missing backup dir ('broken_domainuser'): '{missing_backup_dir}'
     """)
     assert capsys.readouterr().out == expected
 
@@ -63,4 +63,4 @@ def test_exit_2_broken_user(config_test, broken_domainuser, caplog):
         main(config_test)
     assert exit_code.value.code == 2
     assert len(caplog.records) == 1
-    assert caplog.record_tuples[0][2].startswith("Backup dir not found")
+    assert caplog.record_tuples[0][2].startswith("Missing backup dir")

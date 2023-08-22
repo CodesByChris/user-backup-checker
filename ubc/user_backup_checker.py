@@ -186,7 +186,7 @@ class User:
         self.username = username
         self.dir_backup = dir_backup
         if not dir_backup.is_dir():
-            raise FileNotFoundError(f"Backup dir not found (user '{username}'): '{dir_backup}'")
+            raise FileNotFoundError(f"Missing backup dir ('{username}'): '{dir_backup}'")
         self._init_newest_file_and_date(dir_backup)
 
     def is_outdated(self, reference_date: datetime, tolerance: timedelta,
@@ -302,6 +302,8 @@ def user_factory(user_detection_lookups: dict,
 
             try:
                 user = User(name, dir_backup=home_dir / Path(lookup["backup_subdir"]))
+                if not user.newest_date or not user.newest_path:
+                    raise FileNotFoundError(f"Empty backup dir ('{name}'): '{user.dir_backup}'")
             except FileNotFoundError as error:
                 logger.warning(str(error))
             else:

@@ -91,6 +91,15 @@ def test_user_factory_exclude(simple_domainuser, simple_domainuser_2, user_detec
     assert users_2[0] == simple_domainuser_2
 
 
+def test_user_factory_empty_user(empty_localuser, simple_localuser, user_detection_lookup, caplog):
+    """Tests whether a user with an empty backup directory is logged."""
+    users = user_factory(user_detection_lookup)
+    assert len(users) == 1
+    assert users[0] == simple_localuser
+    assert len(caplog.records) == 1, "Exactly one log entry expected."
+    assert caplog.record_tuples[0][2].startswith("Empty backup dir")
+
+
 def test_user_factory_broken_user(simple_domainuser, broken_domainuser, paths_domainuser_homes,
                                   user_detection_lookup, caplog):
     """Tests whether a user with no backup directory is logged."""
@@ -98,7 +107,7 @@ def test_user_factory_broken_user(simple_domainuser, broken_domainuser, paths_do
     assert len(users) == 1
     assert users[0] == simple_domainuser
     assert len(caplog.records) == 1, "Exactly one log entry expected."
-    assert caplog.record_tuples[0][2].startswith("Backup dir not found")
+    assert caplog.record_tuples[0][2].startswith("Missing backup dir")
 
 
 def test_user_factory_duplicate_user(paths_localuser_homes, paths_domainuser_homes,
